@@ -10,8 +10,15 @@ import android.os.Build;
 import java.util.Calendar;
 
 final class AlarmScheduler {
-    static final String ACTION_SLEEP = "com.norahc.sleeptimer.ACTION_SLEEP";
-    private static final int REQUEST_CODE = 401;
+    static final String ACTION_DAILY_SLEEP = "com.norahc.sleeptimer.ACTION_DAILY_SLEEP";
+    static final String ACTION_ONE_SHOT_SLEEP = "com.norahc.sleeptimer.ACTION_ONE_SHOT_SLEEP";
+
+    private static final int REQUEST_DAILY = 401;
+    private static final int REQUEST_ONE_SHOT = 402;
+    private static final int SCHEDULE_FAILED = 0;
+    private static final int SCHEDULE_APPROXIMATE = 1;
+    private static final int SCHEDULE_EXACT = 2;
+    private static final long ONE_SHOT_STALE_GRACE_MS = 30L * 60L * 1000L;
 
     private AlarmScheduler() {
     }
@@ -30,82 +37,133 @@ final class AlarmScheduler {
 
     static void ensureScheduled(Context context) {
         Context appContext = context.getApplicationContext();
-        if (!AppPrefs.isEnabled(appContext)) {
-            cancel(appContext);
+        if (AppPrefs.isEnabled(appContext)) {
+            scheduleDaily(appContext);
+        } else {
+            cancelDaily(appContext);
+        }
+
+        long oneShot = AppPrefs.getOneShotTrigger(appContext);
+        if (oneShot <= 0L) {
+            cancelOneShotAlarmOnly(appContext);
             return;
         }
 
-        long nextTrigger = AppPrefs.getNextTrigger(appContext);
-        boolean shouldBeExact = canScheduleExactAlarms(appContext);
-        boolean storedExact = AppPrefs.isNextTriggerExact(appContext);
-        if (nextTrigger <= System.currentTimeMillis() || shouldBeExact != storedExact) {
-            schedule(appContext);
+        long now = System.currentTimeMillis();
+        if (oneShot < now - ONE_SHOT_STALE_GRACE_MS) {
+            cancelOneShot(appContext);
+            return;
         }
+
+        scheduleOneShotAt(appContext, Math.max(oneShot, now + 1_000L));
     }
 
-    static void schedule(Context context) {
+    static void rescheduleAll(Context context) {
+        ensureScheduled(context);
+    }
+
+    static boolean scheduleDaily(Context context) {
         Context appContext = context.getApplicationContext();
-        AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
+        AlarmManager alarmManager = getAlarmManager(appContext);
         if (alarmManager == null) {
             AppPrefs.clearNextTrigger(appContext);
-            return;
+            return false;
         }
 
-        PendingIntent operation = getPendingIntent(appContext);
+        PendingIntent operation = getDailyPendingIntent(appContext);
         alarmManager.cancel(operation);
 
         if (!AppPrefs.isEnabled(appContext)) {
             AppPrefs.clearNextTrigger(appContext);
-            return;
+            return false;
         }
 
-        long nextTrigger = calculateNextTrigger(appContext);
-        if (canScheduleExactAlarms(appContext)) {
-            try {
-                alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        nextTrigger,
-                        operation
-                );
-                AppPrefs.setNextTrigger(appContext, nextTrigger, true);
-                return;
-            } catch (SecurityException ignored) {
-                // Special access can be revoked between the capability check and this call.
-            }
-        }
-
-        try {
-            // Keeps the timer alive without exact-alarm access. Android may deliver it late.
-            alarmManager.setAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    nextTrigger,
-                    operation
-            );
-            AppPrefs.setNextTrigger(appContext, nextTrigger, false);
-        } catch (RuntimeException ignored) {
+        long nextTrigger = calculateNextDailyTrigger(
+                System.currentTimeMillis(),
+                AppPrefs.getHour(appContext),
+                AppPrefs.getMinute(appContext)
+        );
+        int result = scheduleAt(appContext, alarmManager, nextTrigger, operation);
+        if (result == SCHEDULE_FAILED) {
             AppPrefs.clearNextTrigger(appContext);
+            return false;
         }
+
+        AppPrefs.setNextTrigger(appContext, nextTrigger, result == SCHEDULE_EXACT);
+        return true;
     }
 
-    static void cancel(Context context) {
+    static boolean scheduleOneShotAfter(Context context, int minutes) {
+        if (minutes < 1 || minutes > 1_440) {
+            return false;
+        }
+        long trigger = System.currentTimeMillis() + minutes * 60_000L;
+        return scheduleOneShotAt(context, trigger);
+    }
+
+    static boolean scheduleOneShotAt(Context context, long triggerAtMillis) {
         Context appContext = context.getApplicationContext();
-        AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
+        AlarmManager alarmManager = getAlarmManager(appContext);
+        if (alarmManager == null || triggerAtMillis <= 0L) {
+            AppPrefs.clearOneShotTrigger(appContext);
+            return false;
+        }
+
+        PendingIntent operation = getOneShotPendingIntent(appContext);
+        alarmManager.cancel(operation);
+
+        int result = scheduleAt(appContext, alarmManager, triggerAtMillis, operation);
+        if (result == SCHEDULE_FAILED) {
+            AppPrefs.clearOneShotTrigger(appContext);
+            return false;
+        }
+
+        AppPrefs.setOneShotTrigger(appContext, triggerAtMillis, result == SCHEDULE_EXACT);
+        return true;
+    }
+
+    static void cancelDaily(Context context) {
+        Context appContext = context.getApplicationContext();
+        AlarmManager alarmManager = getAlarmManager(appContext);
         if (alarmManager != null) {
-            alarmManager.cancel(getPendingIntent(appContext));
+            alarmManager.cancel(getDailyPendingIntent(appContext));
         }
         AppPrefs.clearNextTrigger(appContext);
     }
 
-    static long getNextTrigger(Context context) {
-        long stored = AppPrefs.getNextTrigger(context);
-        return stored > System.currentTimeMillis() ? stored : calculateNextTrigger(context);
+    static void cancelOneShot(Context context) {
+        Context appContext = context.getApplicationContext();
+        cancelOneShotAlarmOnly(appContext);
+        AppPrefs.clearOneShotTrigger(appContext);
     }
 
-    private static long calculateNextTrigger(Context context) {
+    static long getNextDailyTrigger(Context context) {
+        long stored = AppPrefs.getNextTrigger(context);
+        return stored > System.currentTimeMillis()
+                ? stored
+                : calculateNextDailyTrigger(
+                        System.currentTimeMillis(),
+                        AppPrefs.getHour(context),
+                        AppPrefs.getMinute(context)
+                );
+    }
+
+    static long getOneShotTrigger(Context context) {
+        return AppPrefs.getOneShotTrigger(context);
+    }
+
+    static boolean isOneShotActive(Context context) {
+        return AppPrefs.getOneShotTrigger(context) > 0L;
+    }
+
+    static long calculateNextDailyTrigger(long nowMillis, int hour, int minute) {
         Calendar now = Calendar.getInstance();
+        now.setTimeInMillis(nowMillis);
+
         Calendar next = Calendar.getInstance();
-        next.set(Calendar.HOUR_OF_DAY, AppPrefs.getHour(context));
-        next.set(Calendar.MINUTE, AppPrefs.getMinute(context));
+        next.setTimeInMillis(nowMillis);
+        next.set(Calendar.HOUR_OF_DAY, hour);
+        next.set(Calendar.MINUTE, minute);
         next.set(Calendar.SECOND, 0);
         next.set(Calendar.MILLISECOND, 0);
         if (!next.after(now)) {
@@ -114,13 +172,69 @@ final class AlarmScheduler {
         return next.getTimeInMillis();
     }
 
-    private static PendingIntent getPendingIntent(Context context) {
+    private static int scheduleAt(
+            Context context,
+            AlarmManager alarmManager,
+            long triggerAtMillis,
+            PendingIntent operation
+    ) {
+        if (canScheduleExactAlarms(context)) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        operation
+                );
+                return SCHEDULE_EXACT;
+            } catch (SecurityException ignored) {
+                // Special access can be revoked between capability check and scheduling.
+            } catch (RuntimeException ignored) {
+                return SCHEDULE_FAILED;
+            }
+        }
+
+        try {
+            alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    operation
+            );
+            return SCHEDULE_APPROXIMATE;
+        } catch (RuntimeException ignored) {
+            return SCHEDULE_FAILED;
+        }
+    }
+
+    private static AlarmManager getAlarmManager(Context context) {
+        return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+    }
+
+    private static void cancelOneShotAlarmOnly(Context context) {
+        AlarmManager alarmManager = getAlarmManager(context);
+        if (alarmManager != null) {
+            alarmManager.cancel(getOneShotPendingIntent(context));
+        }
+    }
+
+    private static PendingIntent getDailyPendingIntent(Context context) {
         Intent intent = new Intent(context, SleepActionReceiver.class)
-                .setAction(ACTION_SLEEP)
-                .setData(Uri.parse("chzzk-sleep-timer://sleep"));
+                .setAction(ACTION_DAILY_SLEEP)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep/daily"));
         return PendingIntent.getBroadcast(
                 context,
-                REQUEST_CODE,
+                REQUEST_DAILY,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent getOneShotPendingIntent(Context context) {
+        Intent intent = new Intent(context, SleepActionReceiver.class)
+                .setAction(ACTION_ONE_SHOT_SLEEP)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep/once"));
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_ONE_SHOT,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
