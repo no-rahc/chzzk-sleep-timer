@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.7 - 2026-08-21
+
+### UX
+- Reduced the 10-minute warning to a compact floating card near the top of the screen instead of a tall modal covering the playback area.
+- Replaced the three full-width extension buttons with a single horizontal +5 / +20 / +40 minute row.
+- Limited warning, extension-picker, brightness, and accessibility prompt widths on phones and tablets.
+- Reduced background dimming behind timer popups so the currently playing screen stays visible.
+- Simplified brightness popup copy and spacing while keeping the live slider, reset, and close actions.
+
 ## 1.2.6 - 2026-08-21
 
 ### Added
