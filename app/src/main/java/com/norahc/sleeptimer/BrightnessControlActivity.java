@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -25,10 +27,10 @@ public final class BrightnessControlActivity extends Activity {
     private void showBrightnessDialog() {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(24), dp(8), dp(24), dp(4));
+        content.setPadding(dp(16), dp(2), dp(16), 0);
 
         TextView value = new TextView(this);
-        value.setTextSize(22);
+        value.setTextSize(18);
         value.setGravity(Gravity.CENTER);
         content.addView(value, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -43,29 +45,19 @@ public final class BrightnessControlActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        sliderParams.setMargins(0, dp(14), 0, dp(8));
+        sliderParams.setMargins(0, dp(7), 0, dp(2));
         content.addView(slider, sliderParams);
 
-        TextView hint = new TextView(this);
-        hint.setText("시스템 밝기는 그대로 두고 검은 화면 필터를 추가해 최저 밝기보다 더 어둡게 만듭니다.");
-        hint.setTextSize(13);
-        content.addView(hint, new LinearLayout.LayoutParams(
+        TextView status = new TextView(this);
+        status.setTextSize(11);
+        status.setGravity(Gravity.CENTER);
+        content.addView(status, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView status = new TextView(this);
-        status.setTextSize(12);
-        status.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        statusParams.setMargins(0, dp(12), 0, 0);
-        content.addView(status, statusParams);
-
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("화면 밝기")
+                .setTitle("추가 어둡게")
                 .setView(content)
                 .setNeutralButton("해제", null)
                 .setNegativeButton("닫기", (ignored, which) -> finish())
@@ -90,6 +82,7 @@ public final class BrightnessControlActivity extends Activity {
         dialog.setOnShowListener(ignored -> {
             dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> slider.setProgress(0));
             applyDim(slider.getProgress(), value, status);
+            applyCompactDialog(dialog, 0.86f, 360);
         });
         dialog.setOnDismissListener(ignored -> finish());
         dialog.show();
@@ -98,23 +91,21 @@ public final class BrightnessControlActivity extends Activity {
     private void applyDim(int percent, TextView value, TextView status) {
         int safePercent = AppPrefs.clampExtraDimPercent(percent);
         value.setText(safePercent == 0
-                ? "추가 어둡게 꺼짐"
-                : "추가 어둡게 " + safePercent + "%");
+                ? "꺼짐"
+                : safePercent + "% 더 어둡게");
 
         boolean applied = ScreenLockAccessibilityService.setExtraDimPercent(this, safePercent);
         if (applied) {
-            status.setText(safePercent == 0
-                    ? "화면 필터가 해제되었습니다."
-                    : "움직이는 즉시 화면에 적용됩니다.");
+            status.setText(safePercent == 0 ? "필터 해제" : "즉시 적용");
         } else {
-            status.setText("화면 제어 서비스가 연결되면 저장된 값이 자동 적용됩니다.");
+            status.setText("화면 제어 서비스 연결 대기");
         }
     }
 
     private void showPermissionDialog() {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("화면 제어 권한 필요")
-                .setMessage("추가 어둡게 기능은 화면 잠금과 같은 접근성 서비스를 사용합니다. 화면 내용을 읽거나 터치를 가로채지 않습니다.")
+                .setMessage("추가 어둡게 기능을 사용하려면 화면 제어 접근성을 켜주세요.")
                 .setPositiveButton("접근성 설정", (ignored, which) -> {
                     try {
                         startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
@@ -124,8 +115,26 @@ public final class BrightnessControlActivity extends Activity {
                 })
                 .setNegativeButton("닫기", null)
                 .create();
+        dialog.setOnShowListener(ignored -> applyCompactDialog(dialog, 0.86f, 360));
         dialog.setOnDismissListener(ignored -> finish());
         dialog.show();
+    }
+
+    private void applyCompactDialog(AlertDialog dialog, float fraction, int maxDp) {
+        Window window = dialog.getWindow();
+        if (window == null) {
+            return;
+        }
+        WindowManager.LayoutParams attributes = window.getAttributes();
+        attributes.dimAmount = 0.12f;
+        window.setAttributes(attributes);
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.setLayout(compactWidth(fraction, maxDp), WindowManager.LayoutParams.WRAP_CONTENT);
+    }
+
+    private int compactWidth(float fraction, int maxDp) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        return Math.min(Math.round(screenWidth * fraction), dp(maxDp));
     }
 
     private int dp(int value) {
