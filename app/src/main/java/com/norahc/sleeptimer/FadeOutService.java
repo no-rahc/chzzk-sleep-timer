@@ -14,7 +14,7 @@ import android.os.Looper;
 public final class FadeOutService extends Service {
     private static final String CHANNEL_ID = "sleep_fade_out";
     private static final String CHANNEL_NAME = "종료 전 볼륨 페이드";
-    private static final int NOTIFICATION_ID = 5301;
+    private static final int NOTIFICATION_ID = 5401;
     private static final long TICK_MS = 1_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -31,15 +31,14 @@ public final class FadeOutService extends Service {
                     source,
                     targetAtMillis
             )) {
-                FadeOutManager.cancelAndRestore(FadeOutService.this);
-                stopSelf();
+                abortFadeAndRestore();
                 return;
             }
 
             AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
             int originalVolume = FadeOutManager.getOriginalVolume(FadeOutService.this);
             if (audioManager == null || audioManager.isVolumeFixed() || originalVolume < 0) {
-                stopSelf();
+                abortFadeAndRestore();
                 return;
             }
 
@@ -51,11 +50,15 @@ public final class FadeOutService extends Service {
                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, 0);
                 }
             } catch (RuntimeException ignored) {
-                stopSelf();
+                abortFadeAndRestore();
                 return;
             }
 
             if (remaining <= 0L) {
+                // Keep the now-muted volume in place for the sleep action, but clear
+                // the active fade state so a delayed/approximate sleep alarm cannot
+                // leave this session marked active forever.
+                FadeOutManager.consumeCurrentWithoutRestore(FadeOutService.this);
                 stopSelf();
                 return;
             }
@@ -72,13 +75,18 @@ public final class FadeOutService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) {
-            stopSelf();
+            abortFadeAndRestore();
             return START_NOT_STICKY;
         }
 
         source = intent.getStringExtra(FadeOutManager.EXTRA_SOURCE);
         targetAtMillis = intent.getLongExtra(FadeOutManager.EXTRA_TARGET, 0L);
-        if (source == null || targetAtMillis <= System.currentTimeMillis()) {
+        if (source == null) {
+            abortFadeAndRestore();
+            return START_NOT_STICKY;
+        }
+        if (targetAtMillis <= System.currentTimeMillis()) {
+            FadeOutManager.consumeCurrentWithoutRestore(this);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -99,6 +107,11 @@ public final class FadeOutService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void abortFadeAndRestore() {
+        FadeOutManager.cancelAndRestore(this);
+        stopSelf();
     }
 
     private Notification buildNotification() {
