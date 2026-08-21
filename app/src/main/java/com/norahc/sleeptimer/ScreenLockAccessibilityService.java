@@ -165,6 +165,7 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
             return;
         }
         removeControlOverlay();
+        ensureDimOverlayLayer();
 
         LinearLayout panel = controlPanel();
         addHandle(panel);
@@ -187,14 +188,15 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
                 1f
         ));
 
-        TextView value = UiKit.text(this, "0%", 27, UiKit.PRIMARY);
+        int currentPercent = AppPrefs.getExtraDimPercent(this);
+        TextView value = UiKit.text(this, currentPercent + "%", 27, UiKit.PRIMARY);
         value.setTypeface(null, android.graphics.Typeface.BOLD);
         heading.addView(value);
         panel.addView(heading, margins(0, 0, 0, 14));
 
         SeekBar slider = new SeekBar(this);
         slider.setMax(AppPrefs.MAX_EXTRA_DIM_PERCENT);
-        slider.setProgress(AppPrefs.getExtraDimPercent(this));
+        slider.setProgress(currentPercent);
         slider.setContentDescription("추가 화면 어둡기 조절");
         slider.setPadding(0, 0, 0, 0);
         UiKit.tintSeekBar(slider);
@@ -223,7 +225,12 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         }
         panel.addView(presetRow, margins(0, 9, 0, 0));
 
-        TextView status = UiKit.text(this, "", 12, UiKit.TEXT_SECONDARY);
+        TextView status = UiKit.text(
+                this,
+                currentPercent == 0 ? "추가 어둡기 해제됨" : "실시간 적용 중",
+                12,
+                UiKit.TEXT_SECONDARY
+        );
         status.setGravity(Gravity.CENTER_HORIZONTAL);
         status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         panel.addView(status, margins(0, 10, 0, 0));
@@ -256,7 +263,6 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         });
 
         attachControlOverlay(panel, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 520, 16);
-        slider.setProgress(AppPrefs.getExtraDimPercent(this));
     }
 
     private void showExtensionOverlay(String requestedTarget, boolean warning) {
@@ -411,10 +417,49 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         return windowManager != null;
     }
 
+    private void ensureDimOverlayLayer() {
+        if (dimOverlay != null || !ensureWindowManager()) {
+            return;
+        }
+        createDimOverlay(AppPrefs.getExtraDimPercent(this) / 100f);
+    }
+
+    private void createDimOverlay(float alpha) {
+        if (windowManager == null || dimOverlay != null) {
+            return;
+        }
+        View overlay = new View(this);
+        overlay.setBackgroundColor(Color.BLACK);
+        overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.alpha = alpha;
+        try {
+            windowManager.addView(overlay, params);
+            dimOverlay = overlay;
+        } catch (RuntimeException ignored) {
+            // The service can be disconnected while the overlay is being attached.
+        }
+    }
+
     private void applyExtraDim(int percent) {
         int safePercent = AppPrefs.clampExtraDimPercent(percent);
         if (safePercent <= 0) {
-            removeDimOverlay();
+            if (controlOverlay != null && dimOverlay != null) {
+                updateDimOverlayAlpha(0f);
+            } else {
+                removeDimOverlay();
+            }
             return;
         }
 
@@ -423,34 +468,18 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         }
 
         if (dimOverlay == null) {
-            View overlay = new View(this);
-            overlay.setBackgroundColor(Color.BLACK);
-            overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.TRANSLUCENT
-            );
-            params.gravity = Gravity.TOP | Gravity.START;
-            params.alpha = safePercent / 100f;
-
-            try {
-                windowManager.addView(overlay, params);
-                dimOverlay = overlay;
-            } catch (RuntimeException ignored) {
-                // The service can be disconnected while the overlay is being attached.
-            }
+            createDimOverlay(safePercent / 100f);
             return;
         }
+        updateDimOverlayAlpha(safePercent / 100f);
+    }
 
+    private void updateDimOverlayAlpha(float alpha) {
+        if (dimOverlay == null || windowManager == null) {
+            return;
+        }
         WindowManager.LayoutParams params = (WindowManager.LayoutParams) dimOverlay.getLayoutParams();
-        params.alpha = safePercent / 100f;
+        params.alpha = alpha;
         try {
             windowManager.updateViewLayout(dimOverlay, params);
         } catch (RuntimeException ignored) {
@@ -461,6 +490,9 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
     private void removeControlOverlay() {
         if (controlOverlay == null || windowManager == null) {
             controlOverlay = null;
+            if (AppPrefs.getExtraDimPercent(this) == 0) {
+                removeDimOverlay();
+            }
             return;
         }
         try {
@@ -469,6 +501,9 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
             // It may already have been detached by the system.
         } finally {
             controlOverlay = null;
+            if (AppPrefs.getExtraDimPercent(this) == 0) {
+                removeDimOverlay();
+            }
         }
     }
 
