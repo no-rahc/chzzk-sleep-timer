@@ -1,5 +1,5 @@
 name: Publish v1.3.0
-# v1.3.0 release publication is pinned to the exact verified CI run and checksum.
+# v1.3.0 release publication is pinned to the exact verified CI run and corrected checksum.
 
 on:
   pull_request:
