@@ -46,6 +46,7 @@ final class AppPrefs {
 
     static void setEnabled(Context context, boolean enabled) {
         get(context).edit().putBoolean(KEY_ENABLED, enabled).apply();
+        FadeOutManager.sync(context);
     }
 
     static int getHour(Context context) {
@@ -68,6 +69,7 @@ final class AppPrefs {
                 .putLong(KEY_NEXT_TRIGGER, timestamp)
                 .putBoolean(KEY_NEXT_TRIGGER_EXACT, exact)
                 .commit();
+        FadeOutManager.sync(context);
     }
 
     static long getNextTrigger(Context context) {
@@ -83,6 +85,7 @@ final class AppPrefs {
                 .remove(KEY_NEXT_TRIGGER)
                 .remove(KEY_NEXT_TRIGGER_EXACT)
                 .commit();
+        FadeOutManager.sync(context);
     }
 
     static void setDailyOverrideTrigger(Context context, long timestamp) {
@@ -120,6 +123,7 @@ final class AppPrefs {
                 .putLong(KEY_ONE_SHOT_TRIGGER, timestamp)
                 .putBoolean(KEY_ONE_SHOT_EXACT, exact)
                 .commit();
+        FadeOutManager.sync(context);
     }
 
     static long getOneShotTrigger(Context context) {
@@ -135,6 +139,7 @@ final class AppPrefs {
                 .remove(KEY_ONE_SHOT_TRIGGER)
                 .remove(KEY_ONE_SHOT_EXACT)
                 .commit();
+        FadeOutManager.sync(context);
     }
 
     static boolean shouldPauseMedia(Context context) {
@@ -151,6 +156,7 @@ final class AppPrefs {
 
     static void setMuteVolume(Context context, boolean enabled) {
         get(context).edit().putBoolean(KEY_MUTE_VOLUME, enabled).apply();
+        FadeOutManager.sync(context);
     }
 
     static boolean shouldLockScreen(Context context) {

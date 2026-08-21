@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.6 - 2026-08-21
+
+### Added
+- Smooth 30-second media-volume fade before the next active timer reaches its shutdown time.
+- One-tap `+20분` extension action on the persistent daily timer notification.
+- `연장` notification action that opens a compact +5 / +20 / +40 minute picker while preserving the existing brightness action.
+
+### Changed
+- Fade-out follows whichever active timer (daily or one-shot) is due first.
+- If the daily timer is extended during the fade, the original media volume is restored immediately and the fade is re-armed for the new shutdown time.
+- Fade-out only runs when the existing `미디어 음량 0` shutdown action is enabled, so disabling that action also disables and restores an active fade.
+- The scheduled sleep action consumes the fade without restoring volume first, preventing a brief loud-volume flash at the exact shutdown handoff.
+
+### Reliability
+- The 30-second fade runs in a short foreground service instead of keeping a broadcast receiver alive for an extended period.
+- The normal sleep alarm remains authoritative even if the optional fade service cannot be started.
+
 ## 1.2.5 - 2026-08-21
 
 ### Changed
