@@ -15,6 +15,10 @@ final class AlarmScheduler {
     static final String ACTION_ONE_SHOT_SLEEP = "com.norahc.sleeptimer.ACTION_ONE_SHOT_SLEEP";
     static final String EXTRA_EXPECTED_DAILY_TRIGGER = "expected_daily_trigger";
 
+    static final String TIMER_SOURCE_NONE = "";
+    static final String TIMER_SOURCE_DAILY = "daily";
+    static final String TIMER_SOURCE_ONE_SHOT = "one_shot";
+
     private static final String LEGACY_ACTION_SLEEP = "com.norahc.sleeptimer.ACTION_SLEEP";
     private static final int REQUEST_DAILY = 401;
     private static final int REQUEST_ONE_SHOT = 402;
@@ -62,6 +66,7 @@ final class AlarmScheduler {
         long oneShot = AppPrefs.getOneShotTrigger(appContext);
         if (oneShot <= 0L) {
             cancelOneShotAlarmOnly(appContext);
+            DailyCountdownNotifier.sync(appContext);
             return;
         }
 
@@ -106,7 +111,7 @@ final class AlarmScheduler {
 
         AppPrefs.setNextTrigger(appContext, nextTrigger, result == SCHEDULE_EXACT);
         scheduleDailyWarning(appContext, nextTrigger);
-        DailyCountdownNotifier.show(appContext, nextTrigger);
+        DailyCountdownNotifier.sync(appContext);
         DailyCountdownNotifier.requestPermissionIfNeeded(context);
         return true;
     }
@@ -147,8 +152,24 @@ final class AlarmScheduler {
         AppPrefs.setNextTrigger(appContext, extendedTrigger, result == SCHEDULE_EXACT);
         scheduleDailyWarning(appContext, extendedTrigger);
         DailyWarningNotifier.cancel(appContext);
-        DailyCountdownNotifier.show(appContext, extendedTrigger);
+        DailyCountdownNotifier.sync(appContext);
         return extendedTrigger;
+    }
+
+    static long extendCurrentOneShot(Context context, int minutes) {
+        if (minutes <= 0 || minutes > 240) {
+            return 0L;
+        }
+
+        Context appContext = context.getApplicationContext();
+        long now = System.currentTimeMillis();
+        long currentTrigger = AppPrefs.getOneShotTrigger(appContext);
+        if (currentTrigger <= now + 1_000L) {
+            return 0L;
+        }
+
+        long extendedTrigger = calculateExtendedTrigger(currentTrigger, minutes);
+        return scheduleOneShotAt(appContext, extendedTrigger) ? extendedTrigger : 0L;
     }
 
     static boolean isDailyOverrideActive(Context context) {
@@ -178,6 +199,7 @@ final class AlarmScheduler {
         AlarmManager alarmManager = getAlarmManager(appContext);
         if (alarmManager == null || triggerAtMillis <= 0L) {
             AppPrefs.clearOneShotTrigger(appContext);
+            DailyCountdownNotifier.sync(appContext);
             return false;
         }
 
@@ -187,10 +209,12 @@ final class AlarmScheduler {
         int result = scheduleAt(appContext, alarmManager, triggerAtMillis, operation);
         if (result == SCHEDULE_FAILED) {
             AppPrefs.clearOneShotTrigger(appContext);
+            DailyCountdownNotifier.sync(appContext);
             return false;
         }
 
         AppPrefs.setOneShotTrigger(appContext, triggerAtMillis, result == SCHEDULE_EXACT);
+        DailyCountdownNotifier.sync(appContext);
         return true;
     }
 
@@ -212,6 +236,7 @@ final class AlarmScheduler {
         Context appContext = context.getApplicationContext();
         cancelOneShotAlarmOnly(appContext);
         AppPrefs.clearOneShotTrigger(appContext);
+        DailyCountdownNotifier.sync(appContext);
     }
 
     static long getNextDailyTrigger(Context context) {
@@ -231,6 +256,51 @@ final class AlarmScheduler {
 
     static boolean isOneShotActive(Context context) {
         return AppPrefs.getOneShotTrigger(context) > 0L;
+    }
+
+    static String getNextActiveTimerSource(Context context) {
+        long daily = AppPrefs.isEnabled(context) ? AppPrefs.getNextTrigger(context) : 0L;
+        long oneShot = AppPrefs.getOneShotTrigger(context);
+        return selectNextActiveTimerSource(System.currentTimeMillis(), daily, oneShot);
+    }
+
+    static long getNextActiveTimerTrigger(Context context) {
+        long daily = AppPrefs.isEnabled(context) ? AppPrefs.getNextTrigger(context) : 0L;
+        long oneShot = AppPrefs.getOneShotTrigger(context);
+        return selectNextActiveTimerTrigger(System.currentTimeMillis(), daily, oneShot);
+    }
+
+    static long getTriggerForSource(Context context, String source) {
+        if (TIMER_SOURCE_DAILY.equals(source)) {
+            return AppPrefs.isEnabled(context) ? AppPrefs.getNextTrigger(context) : 0L;
+        }
+        if (TIMER_SOURCE_ONE_SHOT.equals(source)) {
+            return AppPrefs.getOneShotTrigger(context);
+        }
+        return 0L;
+    }
+
+    static String selectNextActiveTimerSource(long nowMillis, long dailyTrigger, long oneShotTrigger) {
+        long daily = dailyTrigger > nowMillis ? dailyTrigger : 0L;
+        long oneShot = oneShotTrigger > nowMillis ? oneShotTrigger : 0L;
+        if (daily > 0L && (oneShot == 0L || daily <= oneShot)) {
+            return TIMER_SOURCE_DAILY;
+        }
+        if (oneShot > 0L) {
+            return TIMER_SOURCE_ONE_SHOT;
+        }
+        return TIMER_SOURCE_NONE;
+    }
+
+    static long selectNextActiveTimerTrigger(long nowMillis, long dailyTrigger, long oneShotTrigger) {
+        String source = selectNextActiveTimerSource(nowMillis, dailyTrigger, oneShotTrigger);
+        if (TIMER_SOURCE_DAILY.equals(source)) {
+            return dailyTrigger;
+        }
+        if (TIMER_SOURCE_ONE_SHOT.equals(source)) {
+            return oneShotTrigger;
+        }
+        return 0L;
     }
 
     static long calculateNextDailyTrigger(long nowMillis, int hour, int minute) {
