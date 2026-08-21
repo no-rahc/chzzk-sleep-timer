@@ -36,7 +36,7 @@ public class SleepActionReceiver extends BroadcastReceiver {
             // Re-arm tomorrow before executing actions so one unexpected failure
             // cannot break the daily schedule chain.
             AlarmScheduler.scheduleDaily(appContext);
-            runNow(appContext, "매일 예약");
+            runNow(appContext, "매일 예약", true);
             return;
         }
 
@@ -47,15 +47,19 @@ public class SleepActionReceiver extends BroadcastReceiver {
 
             // Consume the one-shot first to guarantee at-most-once execution.
             AppPrefs.clearOneShotTrigger(appContext);
-            runNow(appContext, "일회성 타이머");
+            runNow(appContext, "일회성 타이머", true);
         }
     }
 
     static void runNow(Context context) {
-        runNow(context, "수동 테스트");
+        runNow(context, "수동 테스트", false);
     }
 
     static void runNow(Context context, String source) {
+        runNow(context, source, true);
+    }
+
+    private static void runNow(Context context, String source, boolean clearExtraDimAfterLock) {
         Context appContext = context.getApplicationContext();
         List<String> results = new ArrayList<>();
 
@@ -73,7 +77,12 @@ public class SleepActionReceiver extends BroadcastReceiver {
         }
 
         if (AppPrefs.shouldLockScreen(appContext)) {
-            results.add(lockScreenSafely() ? "화면 잠금" : "화면 잠금 권한 없음");
+            boolean locked = lockScreenSafely();
+            results.add(locked ? "화면 잠금" : "화면 잠금 권한 없음");
+            if (locked && clearExtraDimAfterLock) {
+                ScreenLockAccessibilityService.clearExtraDimAfterSuccessfulLock(appContext);
+                results.add("추가 어둡게 해제");
+            }
         }
 
         if (results.isEmpty()) {
