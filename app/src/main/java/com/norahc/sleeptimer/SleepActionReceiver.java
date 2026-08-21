@@ -8,6 +8,7 @@ import android.media.AudioManager;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
+import android.os.PowerManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,7 @@ public class SleepActionReceiver extends BroadcastReceiver {
 
             // Consume the one-shot first to guarantee at-most-once execution.
             AppPrefs.clearOneShotTrigger(appContext);
+            DailyCountdownNotifier.sync(appContext);
             runNow(appContext, "일회성 타이머", true);
         }
     }
@@ -83,11 +85,19 @@ public class SleepActionReceiver extends BroadcastReceiver {
         }
 
         if (AppPrefs.shouldLockScreen(appContext)) {
+            boolean screenWasInteractive = isScreenInteractive(appContext);
             boolean locked = lockScreenSafely();
             results.add(locked ? "화면 잠금" : "화면 잠금 권한 없음");
-            if (locked && clearExtraDimAfterLock) {
-                ScreenLockAccessibilityService.clearExtraDimAfterSuccessfulLock(appContext);
-                results.add("추가 어둡게 해제");
+            if (clearExtraDimAfterLock) {
+                if (locked) {
+                    ScreenLockAccessibilityService.clearExtraDimAfterSuccessfulLock(appContext);
+                    results.add("추가 어둡게 해제");
+                } else if (!screenWasInteractive) {
+                    // The timer may fire after the display has already gone off naturally.
+                    // In that case there is no reason to carry the bedtime dim level into morning.
+                    ScreenLockAccessibilityService.clearExtraDimNow(appContext);
+                    results.add("추가 어둡게 해제");
+                }
             }
         }
 
@@ -160,6 +170,18 @@ public class SleepActionReceiver extends BroadcastReceiver {
             return ScreenLockAccessibilityService.lockScreen();
         } catch (RuntimeException ignored) {
             return false;
+        }
+    }
+
+    private static boolean isScreenInteractive(Context context) {
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        if (powerManager == null) {
+            return true;
+        }
+        try {
+            return powerManager.isInteractive();
+        } catch (RuntimeException ignored) {
+            return true;
         }
     }
 
