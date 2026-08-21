@@ -88,14 +88,19 @@ final class DailyCountdownNotifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        String baseTime = AppPrefs.formatTime(
+                AppPrefs.getHour(appContext),
+                AppPrefs.getMinute(appContext)
+        );
+        String subText = AlarmScheduler.isDailyOverrideActive(appContext)
+                ? "오늘만 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 기본 " + baseTime
+                : "매일 " + baseTime;
+
         Notification notification = new Notification.Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_timer_notification)
                 .setContentTitle("타이머가 작동 중입니다.")
                 .setContentText("꺼지기까지 남은 시간")
-                .setSubText("매일 " + AppPrefs.formatTime(
-                        AppPrefs.getHour(appContext),
-                        AppPrefs.getMinute(appContext)
-                ))
+                .setSubText(subText)
                 .setWhen(triggerAtMillis)
                 .setShowWhen(true)
                 .setUsesChronometer(true)
