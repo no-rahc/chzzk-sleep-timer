@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.3 - 2026-08-21
+
+### Changed
+- Simplified the main screen to focus on daily shutdown, one-shot timers, shutdown actions, permissions, and testing.
+- Removed the decorative eyebrow, long intro copy, duplicated readiness text, implementation notes, and last-run footer from the main UI.
+- Condensed one-shot presets into a single row and hide cancel/status controls when no one-shot timer is active.
+- Condensed shutdown-action and permission rows to remove repeated explanatory copy.
+- Permission rows for media control and screen lock are only shown when their matching shutdown actions are enabled.
+- Added a compact top-level status badge for active, idle, and missing-permission states.
+- Daily temporary extensions are surfaced directly in the main screen as the current one-time time alongside the normal daily time.
+
 ## 1.2.2 - 2026-08-21
 
 ### Added
