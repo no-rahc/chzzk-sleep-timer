@@ -13,6 +13,8 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -31,6 +33,7 @@ public class MainActivity extends Activity {
 
     private TextView timeButton;
     private TextView scheduleSummary;
+    private TextView readinessStatus;
     private TextView lastRun;
     private TextView exactStatus;
     private TextView mediaStatus;
@@ -49,12 +52,14 @@ public class MainActivity extends Activity {
         hour = AppPrefs.getHour(this);
         minute = AppPrefs.getMinute(this);
         setContentView(buildContent());
+        AlarmScheduler.ensureScheduled(this);
         refresh();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        AlarmScheduler.ensureScheduled(this);
         if (scheduleSummary != null) {
             refresh();
         }
@@ -64,6 +69,7 @@ public class MainActivity extends Activity {
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
         scrollView.setBackgroundColor(BG);
+        applySystemBarInsets(scrollView);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -104,8 +110,10 @@ public class MainActivity extends Activity {
         TextView switchCopy = text("매일 자동 실행", 17, TEXT_PRIMARY);
         switchRow.addView(switchCopy, new LinearLayout.LayoutParams(0, dp(52), 1f));
         scheduleSwitch = new Switch(this);
+        scheduleSwitch.setId(View.generateViewId());
         scheduleSwitch.setText("");
         scheduleSwitch.setContentDescription("매일 자동 실행 켜기 또는 끄기");
+        switchCopy.setLabelFor(scheduleSwitch.getId());
         scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (updatingSwitch) {
                 return;
@@ -116,7 +124,7 @@ public class MainActivity extends Activity {
                 if (!AlarmScheduler.canScheduleExactAlarms(this)) {
                     Toast.makeText(
                             this,
-                            "정확한 시각에 실행하려면 알람 및 리마인더 권한을 허용하세요.",
+                            "현재는 근사 시각으로 예약됩니다. 정확한 실행을 원하면 알람 및 리마인더 권한을 허용하세요.",
                             Toast.LENGTH_LONG
                     ).show();
                 }
@@ -133,7 +141,12 @@ public class MainActivity extends Activity {
 
         scheduleSummary = text("", 14, TEXT_SECONDARY);
         scheduleSummary.setLineSpacing(1f, 1.1f);
+        scheduleSummary.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         scheduleCard.addView(scheduleSummary, margins(0, 10, 0, 0));
+
+        readinessStatus = text("", 13, TEXT_SECONDARY);
+        readinessStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        scheduleCard.addView(readinessStatus, margins(0, 8, 0, 0));
         root.addView(scheduleCard, margins(0, 0, 0, 12));
 
         LinearLayout testCard = card();
@@ -170,7 +183,7 @@ public class MainActivity extends Activity {
                 permissionsCard,
                 "미디어 제어",
                 "YouTube·CHZZK·브라우저에 일시정지 요청",
-                "허용",
+                "설정",
                 v -> openNotificationSettings()
         );
         addDivider(permissionsCard);
@@ -178,7 +191,7 @@ public class MainActivity extends Activity {
                 permissionsCard,
                 "화면 잠금",
                 "예약 시각에 화면 끄기",
-                "허용",
+                "설정",
                 v -> openAccessibilitySettings()
         );
         root.addView(permissionsCard, margins(0, 0, 0, 22));
@@ -196,6 +209,7 @@ public class MainActivity extends Activity {
 
         lastRun = text("", 12, TEXT_SECONDARY);
         lastRun.setGravity(Gravity.CENTER);
+        lastRun.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         root.addView(lastRun);
 
         return scrollView;
@@ -218,11 +232,13 @@ public class MainActivity extends Activity {
         copy.addView(titleView);
         copy.addView(text(detail, 12, TEXT_SECONDARY), margins(0, 3, 0, 0));
         TextView status = text("확인 중", 12, WARNING);
+        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         copy.addView(status, margins(0, 5, 0, 0));
 
         row.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView action = button(buttonText, false);
         action.setTextSize(13);
+        action.setContentDescription(title + " 설정 열기");
         action.setOnClickListener(listener);
         row.addView(action, new LinearLayout.LayoutParams(dp(76), dp(44)));
         parent.addView(row, margins(0, 1, 0, 1));
@@ -281,7 +297,7 @@ public class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName())
             ));
         } catch (Exception ignored) {
-            Toast.makeText(this, "정확한 알람 설정을 열 수 없습니다. 시스템 설정에서 앱의 알람 권한을 찾아 허용하세요.", Toast.LENGTH_LONG).show();
+            openAppDetails("정확한 알람 설정을 직접 열 수 없습니다. 앱 설정에서 알람 권한을 확인하세요.");
         }
     }
 
@@ -289,7 +305,7 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
         } catch (Exception ignored) {
-            Toast.makeText(this, "알림 접근 설정을 열 수 없습니다.", Toast.LENGTH_SHORT).show();
+            openAppDetails("알림 접근 설정을 직접 열 수 없습니다. 앱 설정을 확인하세요.");
         }
     }
 
@@ -297,11 +313,26 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
         } catch (Exception ignored) {
-            Toast.makeText(this, "접근성 설정을 열 수 없습니다.", Toast.LENGTH_SHORT).show();
+            openAppDetails("접근성 설정을 직접 열 수 없습니다. 앱 설정을 확인하세요.");
+        }
+    }
+
+    private void openAppDetails(String fallbackMessage) {
+        Toast.makeText(this, fallbackMessage, Toast.LENGTH_LONG).show();
+        try {
+            Intent intent = new Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())
+            );
+            startActivity(intent);
+        } catch (Exception ignored) {
+            // There is no further system settings page we can safely open.
         }
     }
 
     private void refresh() {
+        hour = AppPrefs.getHour(this);
+        minute = AppPrefs.getMinute(this);
         if (timeButton != null) {
             timeButton.setText(AppPrefs.formatTime(hour, minute));
         }
@@ -316,11 +347,21 @@ public class MainActivity extends Activity {
         updatingSwitch = false;
 
         if (enabled) {
+            String next = AppPrefs.formatDateTime(AlarmScheduler.getNextTrigger(this));
             scheduleSummary.setText(exact
-                    ? getString(R.string.schedule_exact, AppPrefs.formatTime(hour, minute))
-                    : getString(R.string.schedule_approximate, AppPrefs.formatTime(hour, minute)));
+                    ? getString(R.string.schedule_exact, next)
+                    : getString(R.string.schedule_approximate, next));
         } else {
             scheduleSummary.setText(R.string.schedule_disabled);
+        }
+
+        int missingPermissions = (exact ? 0 : 1) + (media ? 0 : 1) + (screen ? 0 : 1);
+        if (missingPermissions == 0) {
+            readinessStatus.setText("● 모든 권한이 준비되었습니다.");
+            readinessStatus.setTextColor(POSITIVE);
+        } else {
+            readinessStatus.setText("○ 권한 " + missingPermissions + "개를 확인해 주세요.");
+            readinessStatus.setTextColor(WARNING);
         }
 
         setStatus(exactStatus, exact, exact ? "허용됨" : "허용 필요");
@@ -334,6 +375,25 @@ public class MainActivity extends Activity {
         view.setTextColor(good ? POSITIVE : WARNING);
     }
 
+    private void applySystemBarInsets(ScrollView scrollView) {
+        if (Build.VERSION.SDK_INT < 35) {
+            return;
+        }
+        scrollView.setClipToPadding(false);
+        scrollView.setOnApplyWindowInsetsListener((view, insets) -> {
+            android.graphics.Insets systemBars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+            );
+            view.setPadding(
+                    systemBars.left,
+                    systemBars.top,
+                    systemBars.right,
+                    systemBars.bottom
+            );
+            return insets;
+        });
+    }
+
     private LinearLayout card() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -343,15 +403,17 @@ public class MainActivity extends Activity {
     }
 
     private TextView button(String label, boolean prominent) {
-        TextView view = new TextView(this);
+        Button view = new Button(this);
         view.setText(label);
+        view.setAllCaps(false);
         view.setTextColor(prominent ? BG : TEXT_PRIMARY);
         view.setTextSize(15);
         view.setGravity(Gravity.CENTER);
         view.setTypeface(null, android.graphics.Typeface.BOLD);
-        view.setClickable(true);
-        view.setFocusable(true);
+        view.setMinHeight(0);
+        view.setMinWidth(0);
         view.setPadding(dp(12), 0, dp(12), 0);
+        view.setStateListAnimator(null);
         view.setBackground(round(prominent ? PRIMARY : SURFACE_RAISED, 14));
         return view;
     }
