@@ -1,5 +1,5 @@
 name: Publish v1.3.0
-# v1.3.0 release publication is pinned to the exact verified CI run and ready to publish.
+# v1.3.0 release publication is pinned to the exact verified CI run and checksum.
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ permissions:
 
 env:
   VERIFIED_RUN_ID: "32471676781"
-  VERIFIED_APK_SHA256: 45e58c9fe061a79adb1824cc1be8111462b91375f9ee735c15403f096edf1e12
+  VERIFIED_APK_SHA256: 8ec27a4eff24db6c98a376528256d2be998e2782dbc588a52eaa83342a07569c
   RELEASE_TARGET_SHA: e3753439e6cd80c34c671a19fb8d256504f2037d
   RELEASE_PR: "12"
 
