@@ -28,6 +28,10 @@ public class SleepActionReceiver extends BroadcastReceiver {
                 return;
             }
 
+            // Keep the faded volume in place at the exact handoff to the sleep action.
+            // Re-scheduling tomorrow must not briefly restore the old volume first.
+            FadeOutManager.consumeCurrentWithoutRestore(appContext);
+
             // The current occurrence is consumed now. Any extension applied to this
             // occurrence must not leak into tomorrow's normal daily schedule.
             AlarmScheduler.cancelDailyWarning(appContext);
@@ -44,6 +48,8 @@ public class SleepActionReceiver extends BroadcastReceiver {
             if (!AlarmScheduler.isOneShotActive(appContext)) {
                 return;
             }
+
+            FadeOutManager.consumeCurrentWithoutRestore(appContext);
 
             // Consume the one-shot first to guarantee at-most-once execution.
             AppPrefs.clearOneShotTrigger(appContext);
