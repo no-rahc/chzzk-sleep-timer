@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.5 - 2026-08-21
+
+### Changed
+- Extra dim now behaves as a temporary bedtime setting instead of carrying into the next morning.
+- When a scheduled daily or one-shot timer successfully locks the screen, the stored extra-dim level is reset to 0% and the overlay is removed shortly after the lock transition.
+- Manual action testing does not automatically clear extra dim.
+
+### UX
+- The extra-dim preference is cleared immediately after a successful scheduled lock, while the visible overlay stays in place for about 750 ms to avoid a bright flash just before the screen turns off.
+
 ## 1.2.4 - 2026-08-21
 
 ### Added
