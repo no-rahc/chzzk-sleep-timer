@@ -13,11 +13,13 @@ final class AlarmScheduler {
     static final String ACTION_DAILY_SLEEP = "com.norahc.sleeptimer.ACTION_DAILY_SLEEP";
     static final String ACTION_ONE_SHOT_SLEEP = "com.norahc.sleeptimer.ACTION_ONE_SHOT_SLEEP";
 
+    private static final String LEGACY_ACTION_SLEEP = "com.norahc.sleeptimer.ACTION_SLEEP";
     private static final int REQUEST_DAILY = 401;
     private static final int REQUEST_ONE_SHOT = 402;
     private static final int SCHEDULE_FAILED = 0;
     private static final int SCHEDULE_APPROXIMATE = 1;
     private static final int SCHEDULE_EXACT = 2;
+    private static final long DAILY_STALE_GRACE_MS = 30L * 60L * 1000L;
     private static final long ONE_SHOT_STALE_GRACE_MS = 30L * 60L * 1000L;
 
     private AlarmScheduler() {
@@ -37,6 +39,12 @@ final class AlarmScheduler {
 
     static void ensureScheduled(Context context) {
         Context appContext = context.getApplicationContext();
+        ensureDailyScheduled(appContext);
+        ensureOneShotScheduled(appContext);
+    }
+
+    static void rescheduleAll(Context context) {
+        Context appContext = context.getApplicationContext();
         if (AppPrefs.isEnabled(appContext)) {
             scheduleDaily(appContext);
         } else {
@@ -52,14 +60,9 @@ final class AlarmScheduler {
         long now = System.currentTimeMillis();
         if (oneShot < now - ONE_SHOT_STALE_GRACE_MS) {
             cancelOneShot(appContext);
-            return;
+        } else {
+            scheduleOneShotAt(appContext, Math.max(oneShot, now + 1_000L));
         }
-
-        scheduleOneShotAt(appContext, Math.max(oneShot, now + 1_000L));
-    }
-
-    static void rescheduleAll(Context context) {
-        ensureScheduled(context);
     }
 
     static boolean scheduleDaily(Context context) {
@@ -70,6 +73,7 @@ final class AlarmScheduler {
             return false;
         }
 
+        cancelLegacyDailyAlarm(appContext, alarmManager);
         PendingIntent operation = getDailyPendingIntent(appContext);
         alarmManager.cancel(operation);
 
@@ -127,6 +131,7 @@ final class AlarmScheduler {
         AlarmManager alarmManager = getAlarmManager(appContext);
         if (alarmManager != null) {
             alarmManager.cancel(getDailyPendingIntent(appContext));
+            cancelLegacyDailyAlarm(appContext, alarmManager);
         }
         AppPrefs.clearNextTrigger(appContext);
     }
@@ -139,7 +144,7 @@ final class AlarmScheduler {
 
     static long getNextDailyTrigger(Context context) {
         long stored = AppPrefs.getNextTrigger(context);
-        return stored > System.currentTimeMillis()
+        return stored > 0L
                 ? stored
                 : calculateNextDailyTrigger(
                         System.currentTimeMillis(),
@@ -170,6 +175,43 @@ final class AlarmScheduler {
             next.add(Calendar.DAY_OF_YEAR, 1);
         }
         return next.getTimeInMillis();
+    }
+
+    private static void ensureDailyScheduled(Context context) {
+        if (!AppPrefs.isEnabled(context)) {
+            cancelDaily(context);
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long storedTrigger = AppPrefs.getNextTrigger(context);
+        boolean exactChanged = AppPrefs.isNextTriggerExact(context) != canScheduleExactAlarms(context);
+        boolean tooStale = storedTrigger > 0L && storedTrigger < now - DAILY_STALE_GRACE_MS;
+        boolean alarmMissing = findDailyPendingIntent(context) == null;
+
+        if (storedTrigger <= 0L || tooStale || exactChanged || alarmMissing) {
+            scheduleDaily(context);
+        }
+    }
+
+    private static void ensureOneShotScheduled(Context context) {
+        long oneShot = AppPrefs.getOneShotTrigger(context);
+        if (oneShot <= 0L) {
+            cancelOneShotAlarmOnly(context);
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (oneShot < now - ONE_SHOT_STALE_GRACE_MS) {
+            cancelOneShot(context);
+            return;
+        }
+
+        boolean exactChanged = AppPrefs.isOneShotExact(context) != canScheduleExactAlarms(context);
+        boolean alarmMissing = findOneShotPendingIntent(context) == null;
+        if (exactChanged || alarmMissing) {
+            scheduleOneShotAt(context, Math.max(oneShot, now + 1_000L));
+        }
     }
 
     private static int scheduleAt(
@@ -216,27 +258,71 @@ final class AlarmScheduler {
         }
     }
 
-    private static PendingIntent getDailyPendingIntent(Context context) {
+    private static void cancelLegacyDailyAlarm(Context context, AlarmManager alarmManager) {
+        PendingIntent legacy = findLegacyDailyPendingIntent(context);
+        if (legacy != null) {
+            alarmManager.cancel(legacy);
+            legacy.cancel();
+        }
+    }
+
+    private static PendingIntent findDailyPendingIntent(Context context) {
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_DAILY,
+                dailyIntent(context),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent findOneShotPendingIntent(Context context) {
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_ONE_SHOT,
+                oneShotIntent(context),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent findLegacyDailyPendingIntent(Context context) {
         Intent intent = new Intent(context, SleepActionReceiver.class)
-                .setAction(ACTION_DAILY_SLEEP)
-                .setData(Uri.parse("chzzk-sleep-timer://sleep/daily"));
+                .setAction(LEGACY_ACTION_SLEEP)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep"));
         return PendingIntent.getBroadcast(
                 context,
                 REQUEST_DAILY,
                 intent,
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent getDailyPendingIntent(Context context) {
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_DAILY,
+                dailyIntent(context),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
     }
 
     private static PendingIntent getOneShotPendingIntent(Context context) {
-        Intent intent = new Intent(context, SleepActionReceiver.class)
-                .setAction(ACTION_ONE_SHOT_SLEEP)
-                .setData(Uri.parse("chzzk-sleep-timer://sleep/once"));
         return PendingIntent.getBroadcast(
                 context,
                 REQUEST_ONE_SHOT,
-                intent,
+                oneShotIntent(context),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
+    }
+
+    private static Intent dailyIntent(Context context) {
+        return new Intent(context, SleepActionReceiver.class)
+                .setAction(ACTION_DAILY_SLEEP)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep/daily"));
+    }
+
+    private static Intent oneShotIntent(Context context) {
+        return new Intent(context, SleepActionReceiver.class)
+                .setAction(ACTION_ONE_SHOT_SLEEP)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep/once"));
     }
 }
