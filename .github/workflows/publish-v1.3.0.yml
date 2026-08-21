@@ -1,0 +1,128 @@
+name: Publish v1.3.0
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+  issues: write
+
+env:
+  VERIFIED_SOURCE_SHA: c2eb165c2396f21a263ae9c6ac1553a3b6adfc32
+  VERIFIED_APK_SHA256: 45e58c9fe061a79adb1824cc1be8111462b91375f9ee735c15403f096edf1e12
+  RELEASE_TARGET_SHA: e3753439e6cd80c34c671a19fb8d256504f2037d
+  RELEASE_PR: "12"
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release v1.3.0')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified PR APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          RUN_ID="$(gh run list \
+            --commit "$VERIFIED_SOURCE_SHA" \
+            --workflow "Android CI" \
+            --event pull_request \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')"
+
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "No successful Android CI run found for $VERIFIED_SOURCE_SHA" >&2
+            exit 1
+          fi
+
+          mkdir -p release-artifact
+          gh run download "$RUN_ID" \
+            --name chzzk-sleep-timer-debug \
+            --dir release-artifact
+
+          test -f release-artifact/app-debug.apk
+          cp release-artifact/app-debug.apk chzzk-sleep-timer-v1.3.0.apk
+
+          ACTUAL_SHA256="$(sha256sum chzzk-sleep-timer-v1.3.0.apk | cut -d' ' -f1)"
+          if [ "$ACTUAL_SHA256" != "$VERIFIED_APK_SHA256" ]; then
+            echo "APK checksum mismatch: $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+
+          sha256sum chzzk-sleep-timer-v1.3.0.apk > SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## v1.3.0
+
+          폰과 태블릿에서 모두 편하게 쓸 수 있도록 UI를 전반적으로 다시 정리한 릴리즈입니다. 기존 수면 타이머 기능과 백그라운드 복구 동작은 그대로 유지합니다.
+
+          ### UI 리프레시
+          - 메인 화면을 하나의 공통 디자인 시스템으로 재구성
+          - 현재 실제로 가장 먼저 실행될 `다음 종료`를 상단 요약 카드에서 바로 확인
+          - 폰에서는 한 열, 태블릿에서는 중앙 정렬된 2열 반응형 레이아웃
+          - 태블릿에서 카드와 팝업이 화면 전체로 과하게 늘어나지 않도록 최대 폭 제한
+          - 폰의 일회성 타이머 프리셋을 여유 있는 2x2 배치로 변경
+          - 버튼, 상태 표시, 스위치, 간격, 라운드, 터치 영역을 전체적으로 통일
+
+          ### 밝기 / 연장 / 경고 패널
+          - 구형 AlertDialog 형태의 Extra Dim UI를 바텀 패널 형태로 전면 교체
+          - 큰 현재 퍼센트, 실시간 슬라이더, `해제 / 25% / 50% / 75%` 프리셋 추가
+          - 알림의 `연장` 선택창도 동일한 바텀 패널 디자인으로 교체
+          - +5 / +20 / +40분 연장 후 실제 종료 시각을 함께 표시
+          - 10분 전 경고를 같은 스타일의 작은 상단 플로팅 카드로 정리
+          - 사용자 지정 일회성 타이머와 동작 테스트 팝업도 앱 디자인에 맞게 교체
+
+          ### 유지되는 기능
+          - 매일 예약 / 일회성 타이머
+          - 상단 실시간 카운트다운 알림
+          - +5 / +20 / +40분 해당 회차만 연장
+          - 종료 30초 전 볼륨 페이드아웃
+          - Extra Dim 및 예약 종료 후 자동 해제
+          - 미디어 일시정지 / 음량 0 / 화면 잠금
+          - 재부팅, 시간/시간대 변경, 앱 업데이트 후 예약 복구
+
+          ### 검증
+          첨부 APK는 PR #12에서 unit test, Android lint, assembleDebug를 모두 통과한 동일한 GitHub Actions artifact입니다. 게시 단계에서도 SHA-256 고정값을 다시 확인하며 `SHA256SUMS.txt`를 함께 제공합니다.
+
+          ### APK 서명 안내
+          현재 APK는 debug 서명 빌드입니다. 다른 CI 실행에서 생성한 APK와 서명이 다를 수 있으므로 기존 APK 위에 업데이트 설치가 거부되면 기존 앱을 제거한 후 설치해야 할 수 있습니다.
+          EOF
+
+          if gh release view v1.3.0 >/dev/null 2>&1; then
+            gh release edit v1.3.0 \
+              --target "$RELEASE_TARGET_SHA" \
+              --title "v1.3.0" \
+              --notes-file release-notes.md \
+              --latest
+            gh release upload v1.3.0 \
+              chzzk-sleep-timer-v1.3.0.apk \
+              SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create v1.3.0 \
+              chzzk-sleep-timer-v1.3.0.apk \
+              SHA256SUMS.txt \
+              --target "$RELEASE_TARGET_SHA" \
+              --title "v1.3.0" \
+              --notes-file release-notes.md \
+              --latest
+          fi
+
+      - name: Record publication on release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$RELEASE_PR" --body "✅ v1.3.0 GitHub Release 게시 완료 · APK SHA-256: \`$VERIFIED_APK_SHA256\`"
