@@ -28,10 +28,26 @@ final class AlarmScheduler {
         }
     }
 
+    static void ensureScheduled(Context context) {
+        Context appContext = context.getApplicationContext();
+        if (!AppPrefs.isEnabled(appContext)) {
+            cancel(appContext);
+            return;
+        }
+
+        long nextTrigger = AppPrefs.getNextTrigger(appContext);
+        boolean shouldBeExact = canScheduleExactAlarms(appContext);
+        boolean storedExact = AppPrefs.isNextTriggerExact(appContext);
+        if (nextTrigger <= System.currentTimeMillis() || shouldBeExact != storedExact) {
+            schedule(appContext);
+        }
+    }
+
     static void schedule(Context context) {
         Context appContext = context.getApplicationContext();
         AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager == null) {
+            AppPrefs.clearNextTrigger(appContext);
             return;
         }
 
@@ -39,38 +55,36 @@ final class AlarmScheduler {
         alarmManager.cancel(operation);
 
         if (!AppPrefs.isEnabled(appContext)) {
+            AppPrefs.clearNextTrigger(appContext);
             return;
         }
 
-        Calendar now = Calendar.getInstance();
-        Calendar next = Calendar.getInstance();
-        next.set(Calendar.HOUR_OF_DAY, AppPrefs.getHour(appContext));
-        next.set(Calendar.MINUTE, AppPrefs.getMinute(appContext));
-        next.set(Calendar.SECOND, 0);
-        next.set(Calendar.MILLISECOND, 0);
-        if (!next.after(now)) {
-            next.add(Calendar.DAY_OF_YEAR, 1);
-        }
-
+        long nextTrigger = calculateNextTrigger(appContext);
         if (canScheduleExactAlarms(appContext)) {
             try {
                 alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
-                        next.getTimeInMillis(),
+                        nextTrigger,
                         operation
                 );
+                AppPrefs.setNextTrigger(appContext, nextTrigger, true);
                 return;
             } catch (SecurityException ignored) {
-                // The user may revoke special access between the check and this call.
+                // Special access can be revoked between the capability check and this call.
             }
         }
 
-        // The fallback keeps the timer alive, but Android may deliver it late.
-        alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                next.getTimeInMillis(),
-                operation
-        );
+        try {
+            // Keeps the timer alive without exact-alarm access. Android may deliver it late.
+            alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    nextTrigger,
+                    operation
+            );
+            AppPrefs.setNextTrigger(appContext, nextTrigger, false);
+        } catch (RuntimeException ignored) {
+            AppPrefs.clearNextTrigger(appContext);
+        }
     }
 
     static void cancel(Context context) {
@@ -79,6 +93,25 @@ final class AlarmScheduler {
         if (alarmManager != null) {
             alarmManager.cancel(getPendingIntent(appContext));
         }
+        AppPrefs.clearNextTrigger(appContext);
+    }
+
+    static long getNextTrigger(Context context) {
+        long stored = AppPrefs.getNextTrigger(context);
+        return stored > System.currentTimeMillis() ? stored : calculateNextTrigger(context);
+    }
+
+    private static long calculateNextTrigger(Context context) {
+        Calendar now = Calendar.getInstance();
+        Calendar next = Calendar.getInstance();
+        next.set(Calendar.HOUR_OF_DAY, AppPrefs.getHour(context));
+        next.set(Calendar.MINUTE, AppPrefs.getMinute(context));
+        next.set(Calendar.SECOND, 0);
+        next.set(Calendar.MILLISECOND, 0);
+        if (!next.after(now)) {
+            next.add(Calendar.DAY_OF_YEAR, 1);
+        }
+        return next.getTimeInMillis();
     }
 
     private static PendingIntent getPendingIntent(Context context) {
