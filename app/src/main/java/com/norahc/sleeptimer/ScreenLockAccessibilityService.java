@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -16,6 +18,7 @@ import android.view.accessibility.AccessibilityManager;
 import java.util.List;
 
 public class ScreenLockAccessibilityService extends AccessibilityService {
+    private static final long EXTRA_DIM_CLEAR_AFTER_LOCK_DELAY_MS = 750L;
     private static volatile ScreenLockAccessibilityService instance;
 
     private WindowManager windowManager;
@@ -99,6 +102,21 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         }
         service.applyExtraDim(safePercent);
         return true;
+    }
+
+    static void clearExtraDimAfterSuccessfulLock(Context context) {
+        AppPrefs.setExtraDimPercent(context.getApplicationContext(), 0);
+
+        ScreenLockAccessibilityService service = instance;
+        if (service == null) {
+            return;
+        }
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (instance == service) {
+                service.applyExtraDim(0);
+            }
+        }, EXTRA_DIM_CLEAR_AFTER_LOCK_DELAY_MS);
     }
 
     private void applyExtraDim(int percent) {
