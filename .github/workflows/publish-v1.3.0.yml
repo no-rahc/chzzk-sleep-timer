@@ -1,10 +1,12 @@
 name: Publish v1.3.0
-# Release publication workflow; trigger commits are merged after this file exists on main.
+# Release publication is triggered by the dedicated merged release PR below.
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    types:
+      - closed
   workflow_dispatch:
 
 permissions:
@@ -21,7 +23,7 @@ env:
 
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release v1.3.0')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.title == 'Publish v1.3.0 release')
     runs-on: ubuntu-latest
     steps:
       - name: Download verified PR APK
