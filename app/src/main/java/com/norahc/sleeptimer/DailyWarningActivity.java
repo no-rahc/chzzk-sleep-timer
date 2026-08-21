@@ -23,14 +23,10 @@ public final class DailyWarningActivity extends Activity {
         }
 
         setShowWhenLocked(true);
-        setTurnScreenOn(true);
         setFinishOnTouchOutside(true);
 
         Window window = getWindow();
-        window.addFlags(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                        | WindowManager.LayoutParams.FLAG_DIM_BEHIND
-        );
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);

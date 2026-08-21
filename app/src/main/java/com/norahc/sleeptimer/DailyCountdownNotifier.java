@@ -62,15 +62,30 @@ final class DailyCountdownNotifier {
             return;
         }
 
-        long triggerAtMillis = AppPrefs.getNextTrigger(appContext);
-        if (triggerAtMillis > 0L) {
-            show(appContext, triggerAtMillis);
+        String source = AlarmScheduler.getNextActiveTimerSource(appContext);
+        long triggerAtMillis = AlarmScheduler.getNextActiveTimerTrigger(appContext);
+        if (AlarmScheduler.TIMER_SOURCE_NONE.equals(source) || triggerAtMillis <= 0L) {
+            cancel(appContext);
+            return;
         }
+        show(appContext, triggerAtMillis, source);
     }
 
     static void show(Context context, long triggerAtMillis) {
         Context appContext = context.getApplicationContext();
-        if (triggerAtMillis <= System.currentTimeMillis() || !hasPermission(appContext)) {
+        String source = AlarmScheduler.getNextActiveTimerSource(appContext);
+        long effectiveTrigger = AlarmScheduler.getNextActiveTimerTrigger(appContext);
+        if (effectiveTrigger > 0L) {
+            triggerAtMillis = effectiveTrigger;
+        }
+        show(appContext, triggerAtMillis, source);
+    }
+
+    private static void show(Context context, long triggerAtMillis, String source) {
+        Context appContext = context.getApplicationContext();
+        if (triggerAtMillis <= System.currentTimeMillis()
+                || AlarmScheduler.TIMER_SOURCE_NONE.equals(source)
+                || !hasPermission(appContext)) {
             return;
         }
 
@@ -102,9 +117,10 @@ final class DailyCountdownNotifier {
         );
 
         Intent extend20Intent = new Intent(appContext, DailyWarningReceiver.class)
-                .setAction(DailyWarningReceiver.ACTION_EXTEND_DAILY)
-                .setData(Uri.parse("chzzk-sleep-timer://notification/extend/20"))
-                .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_MINUTES, 20);
+                .setAction(DailyWarningReceiver.ACTION_EXTEND_ACTIVE_TIMER)
+                .setData(Uri.parse("chzzk-sleep-timer://notification/extend/20/" + source))
+                .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_MINUTES, 20)
+                .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_TARGET, source);
         PendingIntent extend20 = PendingIntent.getBroadcast(
                 appContext,
                 REQUEST_EXTEND_20,
@@ -113,7 +129,8 @@ final class DailyCountdownNotifier {
         );
 
         Intent extensionPickerIntent = new Intent(appContext, ExtensionControlActivity.class)
-                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_TARGET, source);
         PendingIntent extensionPicker = PendingIntent.getActivity(
                 appContext,
                 REQUEST_EXTENSION_PICKER,
@@ -125,9 +142,14 @@ final class DailyCountdownNotifier {
                 AppPrefs.getHour(appContext),
                 AppPrefs.getMinute(appContext)
         );
-        String subText = AlarmScheduler.isDailyOverrideActive(appContext)
-                ? "오늘만 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 기본 " + baseTime
-                : "매일 " + baseTime;
+        String subText;
+        if (AlarmScheduler.TIMER_SOURCE_ONE_SHOT.equals(source)) {
+            subText = "일회성 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 매일 " + baseTime;
+        } else if (AlarmScheduler.isDailyOverrideActive(appContext)) {
+            subText = "오늘만 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 기본 " + baseTime;
+        } else {
+            subText = "매일 " + baseTime;
+        }
 
         Notification notification = new Notification.Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_timer_notification)
@@ -173,7 +195,7 @@ final class DailyCountdownNotifier {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("매일 예약된 수면 타이머의 남은 시간을 표시합니다.");
+        channel.setDescription("매일 예약이 켜져 있을 때 실제로 가장 먼저 종료될 타이머의 남은 시간을 표시합니다.");
         channel.setSound(null, null);
         channel.enableVibration(false);
         channel.setShowBadge(false);

@@ -103,6 +103,70 @@ public class AlarmSchedulerTest {
         assertEquals(30, result.get(Calendar.MINUTE));
     }
 
+    @Test
+    public void effectiveTimerUsesOneShotWhenItEndsFirst() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 22, 0);
+        long daily = timestamp(2026, Calendar.AUGUST, 21, 23, 30);
+        long oneShot = timestamp(2026, Calendar.AUGUST, 21, 22, 45);
+
+        assertEquals(
+                AlarmScheduler.TIMER_SOURCE_ONE_SHOT,
+                AlarmScheduler.selectNextActiveTimerSource(now, daily, oneShot)
+        );
+        assertEquals(
+                oneShot,
+                AlarmScheduler.selectNextActiveTimerTrigger(now, daily, oneShot)
+        );
+    }
+
+    @Test
+    public void effectiveTimerUsesDailyWhenItEndsFirst() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 22, 0);
+        long daily = timestamp(2026, Calendar.AUGUST, 21, 22, 30);
+        long oneShot = timestamp(2026, Calendar.AUGUST, 21, 23, 0);
+
+        assertEquals(
+                AlarmScheduler.TIMER_SOURCE_DAILY,
+                AlarmScheduler.selectNextActiveTimerSource(now, daily, oneShot)
+        );
+        assertEquals(
+                daily,
+                AlarmScheduler.selectNextActiveTimerTrigger(now, daily, oneShot)
+        );
+    }
+
+    @Test
+    public void effectiveTimerIgnoresExpiredOneShot() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 22, 0);
+        long daily = timestamp(2026, Calendar.AUGUST, 21, 23, 30);
+        long expiredOneShot = timestamp(2026, Calendar.AUGUST, 21, 21, 59);
+
+        assertEquals(
+                AlarmScheduler.TIMER_SOURCE_DAILY,
+                AlarmScheduler.selectNextActiveTimerSource(now, daily, expiredOneShot)
+        );
+        assertEquals(
+                daily,
+                AlarmScheduler.selectNextActiveTimerTrigger(now, daily, expiredOneShot)
+        );
+    }
+
+    @Test
+    public void effectiveTimerReturnsNoneWhenEverythingExpired() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 22, 0);
+        long expiredDaily = timestamp(2026, Calendar.AUGUST, 21, 21, 30);
+        long expiredOneShot = timestamp(2026, Calendar.AUGUST, 21, 21, 45);
+
+        assertEquals(
+                AlarmScheduler.TIMER_SOURCE_NONE,
+                AlarmScheduler.selectNextActiveTimerSource(now, expiredDaily, expiredOneShot)
+        );
+        assertEquals(
+                0L,
+                AlarmScheduler.selectNextActiveTimerTrigger(now, expiredDaily, expiredOneShot)
+        );
+    }
+
     private static long timestamp(int year, int month, int day, int hour, int minute) {
         Calendar calendar = Calendar.getInstance();
         calendar.clear();

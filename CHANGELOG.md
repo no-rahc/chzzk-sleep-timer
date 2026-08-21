@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.8 - 2026-08-21
+
+### Fixed
+- Separated the 30-second fade foreground notification ID from the 10-minute warning notification so the two notifications no longer overwrite or remove each other.
+- The persistent countdown now follows whichever active timer will actually end first when a daily schedule and one-shot timer coexist.
+- Notification `+20분` and `연장` controls now extend the timer currently shown by the countdown instead of always changing the daily schedule.
+- One-shot completion and cancellation immediately retarget the persistent countdown back to the daily schedule when applicable.
+- Fade service failures now clear stale active state and restore the saved media volume instead of leaving the fade session stuck.
+
+### Reliability
+- The 10-minute warning no longer turns on or keeps on a display that was already off.
+- Android 14+ full-screen warning presentation is attempted only while the device is already interactive and full-screen-intent access is available; otherwise the high-priority notification remains the fallback.
+- If a scheduled screen-lock action runs after the display is already off, the temporary extra-dim preference is cleared so the next morning does not inherit the bedtime dim level.
+- Added regression tests for choosing the effective next timer when daily and one-shot schedules overlap.
+
 ## 1.2.7 - 2026-08-21
 
 ### UX

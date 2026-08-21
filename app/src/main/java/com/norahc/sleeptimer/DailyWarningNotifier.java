@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.PowerManager;
 
 final class DailyWarningNotifier {
     private static final String CHANNEL_ID = "daily_timer_warning_v1";
@@ -58,10 +59,15 @@ final class DailyWarningNotifier {
                 .setOnlyAlertOnce(true)
                 .setTimeoutAfter(remaining)
                 .setContentIntent(warningScreen)
-                .setFullScreenIntent(warningScreen, true)
                 .addAction(0, "+5분 추가", extensionIntent(appContext, 5, REQUEST_EXTEND_5))
                 .addAction(0, "+20분 추가", extensionIntent(appContext, 20, REQUEST_EXTEND_20))
                 .addAction(0, "+40분 추가", extensionIntent(appContext, 40, REQUEST_EXTEND_40));
+
+        // Never wake a display that is already off just to show the 10-minute warning.
+        // When the phone is already in use, Android may surface this as a heads-up popup.
+        if (isScreenInteractive(appContext) && canUseFullScreenIntent(manager)) {
+            builder.setFullScreenIntent(warningScreen, true);
+        }
 
         try {
             manager.notify(NOTIFICATION_ID, builder.build());
@@ -89,6 +95,29 @@ final class DailyWarningNotifier {
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
+    }
+
+    private static boolean canUseFullScreenIntent(NotificationManager manager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return true;
+        }
+        try {
+            return manager.canUseFullScreenIntent();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isScreenInteractive(Context context) {
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        if (powerManager == null) {
+            return true;
+        }
+        try {
+            return powerManager.isInteractive();
+        } catch (RuntimeException ignored) {
+            return true;
+        }
     }
 
     private static void createChannel(NotificationManager manager) {
