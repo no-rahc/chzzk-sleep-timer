@@ -113,7 +113,6 @@ public final class FadeOutService extends Service {
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_SERVICE)
-                .setSilent(true)
                 .build();
     }
 
