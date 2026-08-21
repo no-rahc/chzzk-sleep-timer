@@ -11,16 +11,20 @@ import java.util.Calendar;
 
 final class AlarmScheduler {
     static final String ACTION_DAILY_SLEEP = "com.norahc.sleeptimer.ACTION_DAILY_SLEEP";
+    static final String ACTION_DAILY_WARNING = "com.norahc.sleeptimer.ACTION_DAILY_WARNING";
     static final String ACTION_ONE_SHOT_SLEEP = "com.norahc.sleeptimer.ACTION_ONE_SHOT_SLEEP";
+    static final String EXTRA_EXPECTED_DAILY_TRIGGER = "expected_daily_trigger";
 
     private static final String LEGACY_ACTION_SLEEP = "com.norahc.sleeptimer.ACTION_SLEEP";
     private static final int REQUEST_DAILY = 401;
     private static final int REQUEST_ONE_SHOT = 402;
+    private static final int REQUEST_DAILY_WARNING = 403;
     private static final int SCHEDULE_FAILED = 0;
     private static final int SCHEDULE_APPROXIMATE = 1;
     private static final int SCHEDULE_EXACT = 2;
     private static final long DAILY_STALE_GRACE_MS = 30L * 60L * 1000L;
     private static final long ONE_SHOT_STALE_GRACE_MS = 30L * 60L * 1000L;
+    private static final long DAILY_WARNING_LEAD_MS = 10L * 60L * 1000L;
 
     private AlarmScheduler() {
     }
@@ -81,18 +85,18 @@ final class AlarmScheduler {
         cancelLegacyDailyAlarm(appContext, alarmManager);
         PendingIntent operation = getDailyPendingIntent(appContext);
         alarmManager.cancel(operation);
+        cancelDailyWarningAlarm(appContext);
 
         if (!AppPrefs.isEnabled(appContext)) {
             AppPrefs.clearNextTrigger(appContext);
+            AppPrefs.clearDailyOverride(appContext);
             DailyCountdownNotifier.cancel(appContext);
+            DailyWarningNotifier.cancel(appContext);
             return false;
         }
 
-        long nextTrigger = calculateNextDailyTrigger(
-                System.currentTimeMillis(),
-                AppPrefs.getHour(appContext),
-                AppPrefs.getMinute(appContext)
-        );
+        long now = System.currentTimeMillis();
+        long nextTrigger = resolveNextDailyTrigger(appContext, now);
         int result = scheduleAt(appContext, alarmManager, nextTrigger, operation);
         if (result == SCHEDULE_FAILED) {
             AppPrefs.clearNextTrigger(appContext);
@@ -101,9 +105,64 @@ final class AlarmScheduler {
         }
 
         AppPrefs.setNextTrigger(appContext, nextTrigger, result == SCHEDULE_EXACT);
+        scheduleDailyWarning(appContext, nextTrigger);
         DailyCountdownNotifier.show(appContext, nextTrigger);
         DailyCountdownNotifier.requestPermissionIfNeeded(context);
         return true;
+    }
+
+    static long extendCurrentDaily(Context context, int minutes) {
+        if (minutes <= 0 || minutes > 240) {
+            return 0L;
+        }
+
+        Context appContext = context.getApplicationContext();
+        if (!AppPrefs.isEnabled(appContext)) {
+            return 0L;
+        }
+
+        AlarmManager alarmManager = getAlarmManager(appContext);
+        if (alarmManager == null) {
+            return 0L;
+        }
+
+        long now = System.currentTimeMillis();
+        long currentTrigger = AppPrefs.getNextTrigger(appContext);
+        if (currentTrigger <= now + 1_000L) {
+            return 0L;
+        }
+
+        long extendedTrigger = calculateExtendedTrigger(currentTrigger, minutes);
+        int result = scheduleAt(
+                appContext,
+                alarmManager,
+                extendedTrigger,
+                getDailyPendingIntent(appContext)
+        );
+        if (result == SCHEDULE_FAILED) {
+            return 0L;
+        }
+
+        AppPrefs.setDailyOverrideTrigger(appContext, extendedTrigger);
+        AppPrefs.setNextTrigger(appContext, extendedTrigger, result == SCHEDULE_EXACT);
+        scheduleDailyWarning(appContext, extendedTrigger);
+        DailyWarningNotifier.cancel(appContext);
+        DailyCountdownNotifier.show(appContext, extendedTrigger);
+        return extendedTrigger;
+    }
+
+    static boolean isDailyOverrideActive(Context context) {
+        return AppPrefs.isDailyOverrideForCurrentSchedule(context)
+                && AppPrefs.getDailyOverrideTrigger(context) > System.currentTimeMillis();
+    }
+
+    static void consumeDailyOverride(Context context) {
+        AppPrefs.clearDailyOverride(context.getApplicationContext());
+    }
+
+    static void cancelDailyWarning(Context context) {
+        cancelDailyWarningAlarm(context.getApplicationContext());
+        DailyWarningNotifier.cancel(context.getApplicationContext());
     }
 
     static boolean scheduleOneShotAfter(Context context, int minutes) {
@@ -142,8 +201,11 @@ final class AlarmScheduler {
             alarmManager.cancel(getDailyPendingIntent(appContext));
             cancelLegacyDailyAlarm(appContext, alarmManager);
         }
+        cancelDailyWarningAlarm(appContext);
         AppPrefs.clearNextTrigger(appContext);
+        AppPrefs.clearDailyOverride(appContext);
         DailyCountdownNotifier.cancel(appContext);
+        DailyWarningNotifier.cancel(appContext);
     }
 
     static void cancelOneShot(Context context) {
@@ -187,6 +249,30 @@ final class AlarmScheduler {
         return next.getTimeInMillis();
     }
 
+    static long calculateWarningTrigger(long nowMillis, long dailyTriggerMillis) {
+        return Math.max(nowMillis + 1_000L, dailyTriggerMillis - DAILY_WARNING_LEAD_MS);
+    }
+
+    static long calculateExtendedTrigger(long currentTriggerMillis, int minutes) {
+        return currentTriggerMillis + minutes * 60_000L;
+    }
+
+    private static long resolveNextDailyTrigger(Context context, long now) {
+        long override = AppPrefs.getDailyOverrideTrigger(context);
+        if (AppPrefs.isDailyOverrideForCurrentSchedule(context) && override > now + 1_000L) {
+            return override;
+        }
+
+        if (override > 0L) {
+            AppPrefs.clearDailyOverride(context);
+        }
+        return calculateNextDailyTrigger(
+                now,
+                AppPrefs.getHour(context),
+                AppPrefs.getMinute(context)
+        );
+    }
+
     private static void ensureDailyScheduled(Context context) {
         if (!AppPrefs.isEnabled(context)) {
             cancelDaily(context);
@@ -222,6 +308,24 @@ final class AlarmScheduler {
         if (exactChanged || alarmMissing) {
             scheduleOneShotAt(context, Math.max(oneShot, now + 1_000L));
         }
+    }
+
+    private static void scheduleDailyWarning(Context context, long dailyTriggerMillis) {
+        AlarmManager alarmManager = getAlarmManager(context);
+        if (alarmManager == null || dailyTriggerMillis <= System.currentTimeMillis()) {
+            return;
+        }
+
+        long warningTrigger = calculateWarningTrigger(
+                System.currentTimeMillis(),
+                dailyTriggerMillis
+        );
+        scheduleAt(
+                context,
+                alarmManager,
+                warningTrigger,
+                getDailyWarningPendingIntent(context, dailyTriggerMillis)
+        );
     }
 
     private static int scheduleAt(
@@ -261,6 +365,15 @@ final class AlarmScheduler {
         return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
     }
 
+    private static void cancelDailyWarningAlarm(Context context) {
+        AlarmManager alarmManager = getAlarmManager(context);
+        PendingIntent pendingIntent = findDailyWarningPendingIntent(context);
+        if (alarmManager != null && pendingIntent != null) {
+            alarmManager.cancel(pendingIntent);
+            pendingIntent.cancel();
+        }
+    }
+
     private static void cancelOneShotAlarmOnly(Context context) {
         AlarmManager alarmManager = getAlarmManager(context);
         if (alarmManager != null) {
@@ -281,6 +394,15 @@ final class AlarmScheduler {
                 context,
                 REQUEST_DAILY,
                 dailyIntent(context),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent findDailyWarningPendingIntent(Context context) {
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_DAILY_WARNING,
+                dailyWarningIntent(context, 0L),
                 PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
         );
     }
@@ -315,6 +437,15 @@ final class AlarmScheduler {
         );
     }
 
+    private static PendingIntent getDailyWarningPendingIntent(Context context, long expectedTrigger) {
+        return PendingIntent.getBroadcast(
+                context,
+                REQUEST_DAILY_WARNING,
+                dailyWarningIntent(context, expectedTrigger),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
     private static PendingIntent getOneShotPendingIntent(Context context) {
         return PendingIntent.getBroadcast(
                 context,
@@ -328,6 +459,13 @@ final class AlarmScheduler {
         return new Intent(context, SleepActionReceiver.class)
                 .setAction(ACTION_DAILY_SLEEP)
                 .setData(Uri.parse("chzzk-sleep-timer://sleep/daily"));
+    }
+
+    private static Intent dailyWarningIntent(Context context, long expectedTrigger) {
+        return new Intent(context, DailyWarningReceiver.class)
+                .setAction(ACTION_DAILY_WARNING)
+                .setData(Uri.parse("chzzk-sleep-timer://sleep/daily-warning"))
+                .putExtra(EXTRA_EXPECTED_DAILY_TRIGGER, expectedTrigger);
     }
 
     private static Intent oneShotIntent(Context context) {
