@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 
@@ -29,10 +30,14 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
     }
 
     @Override
+    public boolean onUnbind(Intent intent) {
+        clearInstance();
+        return super.onUnbind(intent);
+    }
+
+    @Override
     public void onDestroy() {
-        if (instance == this) {
-            instance = null;
-        }
+        clearInstance();
         super.onDestroy();
     }
 
@@ -68,5 +73,11 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
             return false;
         }
         return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN);
+    }
+
+    private void clearInstance() {
+        if (instance == this) {
+            instance = null;
+        }
     }
 }
