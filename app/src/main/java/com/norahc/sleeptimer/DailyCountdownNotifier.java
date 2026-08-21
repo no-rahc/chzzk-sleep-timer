@@ -9,6 +9,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 
 final class DailyCountdownNotifier {
@@ -19,6 +20,8 @@ final class DailyCountdownNotifier {
     private static final int NOTIFICATION_ID = 5201;
     private static final int REQUEST_OPEN_APP = 5202;
     private static final int REQUEST_BRIGHTNESS = 5204;
+    private static final int REQUEST_EXTEND_20 = 5205;
+    private static final int REQUEST_EXTENSION_PICKER = 5206;
 
     private static boolean permissionRequestInFlight;
 
@@ -98,6 +101,26 @@ final class DailyCountdownNotifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        Intent extend20Intent = new Intent(appContext, DailyWarningReceiver.class)
+                .setAction(DailyWarningReceiver.ACTION_EXTEND_DAILY)
+                .setData(Uri.parse("chzzk-sleep-timer://notification/extend/20"))
+                .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_MINUTES, 20);
+        PendingIntent extend20 = PendingIntent.getBroadcast(
+                appContext,
+                REQUEST_EXTEND_20,
+                extend20Intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Intent extensionPickerIntent = new Intent(appContext, ExtensionControlActivity.class)
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent extensionPicker = PendingIntent.getActivity(
+                appContext,
+                REQUEST_EXTENSION_PICKER,
+                extensionPickerIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
         String baseTime = AppPrefs.formatTime(
                 AppPrefs.getHour(appContext),
                 AppPrefs.getMinute(appContext)
@@ -120,6 +143,8 @@ final class DailyCountdownNotifier {
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setContentIntent(openApp)
+                .addAction(R.drawable.ic_timer_notification, "+20분", extend20)
+                .addAction(R.drawable.ic_timer_notification, "연장", extensionPicker)
                 .addAction(R.drawable.ic_brightness_notification, "밝기", brightnessControl)
                 .build();
 
