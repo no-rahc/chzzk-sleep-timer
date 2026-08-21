@@ -41,6 +41,10 @@ final class AlarmScheduler {
         Context appContext = context.getApplicationContext();
         ensureDailyScheduled(appContext);
         ensureOneShotScheduled(appContext);
+        DailyCountdownNotifier.sync(appContext);
+        if (AppPrefs.isEnabled(appContext)) {
+            DailyCountdownNotifier.requestPermissionIfNeeded(context);
+        }
     }
 
     static void rescheduleAll(Context context) {
@@ -70,6 +74,7 @@ final class AlarmScheduler {
         AlarmManager alarmManager = getAlarmManager(appContext);
         if (alarmManager == null) {
             AppPrefs.clearNextTrigger(appContext);
+            DailyCountdownNotifier.cancel(appContext);
             return false;
         }
 
@@ -79,6 +84,7 @@ final class AlarmScheduler {
 
         if (!AppPrefs.isEnabled(appContext)) {
             AppPrefs.clearNextTrigger(appContext);
+            DailyCountdownNotifier.cancel(appContext);
             return false;
         }
 
@@ -90,10 +96,13 @@ final class AlarmScheduler {
         int result = scheduleAt(appContext, alarmManager, nextTrigger, operation);
         if (result == SCHEDULE_FAILED) {
             AppPrefs.clearNextTrigger(appContext);
+            DailyCountdownNotifier.cancel(appContext);
             return false;
         }
 
         AppPrefs.setNextTrigger(appContext, nextTrigger, result == SCHEDULE_EXACT);
+        DailyCountdownNotifier.show(appContext, nextTrigger);
+        DailyCountdownNotifier.requestPermissionIfNeeded(context);
         return true;
     }
 
@@ -134,6 +143,7 @@ final class AlarmScheduler {
             cancelLegacyDailyAlarm(appContext, alarmManager);
         }
         AppPrefs.clearNextTrigger(appContext);
+        DailyCountdownNotifier.cancel(appContext);
     }
 
     static void cancelOneShot(Context context) {

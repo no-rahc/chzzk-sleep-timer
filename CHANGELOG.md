@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.1 - 2026-08-21
+
+### Added
+- Persistent daily timer notification while the recurring schedule is enabled.
+- System-managed countdown showing the remaining time until the next daily sleep action.
+- Android 13+ notification permission request flow when the daily schedule is active.
+
+### Changed
+- Changing the daily execution time immediately retargets the countdown notification.
+- Running a daily sleep action rolls the notification forward to the next day's schedule.
+- Disabling the daily schedule also removes its countdown notification.
+
 ## 1.2.0 - 2026-08-21
 
 ### Added
