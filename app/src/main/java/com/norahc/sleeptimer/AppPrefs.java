@@ -8,6 +8,8 @@ import java.util.Date;
 import java.util.Locale;
 
 final class AppPrefs {
+    static final int MAX_EXTRA_DIM_PERCENT = 85;
+
     private static final String PREFS = "sleep_timer_preferences";
 
     private static final String KEY_ENABLED = "enabled";
@@ -25,6 +27,7 @@ final class AppPrefs {
     private static final String KEY_PAUSE_MEDIA = "pause_media";
     private static final String KEY_MUTE_VOLUME = "mute_volume";
     private static final String KEY_LOCK_SCREEN = "lock_screen";
+    private static final String KEY_EXTRA_DIM_PERCENT = "extra_dim_percent";
 
     private static final String KEY_LAST_RUN = "last_run";
     private static final String KEY_LAST_SOURCE = "last_source";
@@ -156,6 +159,20 @@ final class AppPrefs {
 
     static void setLockScreen(Context context, boolean enabled) {
         get(context).edit().putBoolean(KEY_LOCK_SCREEN, enabled).apply();
+    }
+
+    static int getExtraDimPercent(Context context) {
+        return clampExtraDimPercent(get(context).getInt(KEY_EXTRA_DIM_PERCENT, 0));
+    }
+
+    static void setExtraDimPercent(Context context, int percent) {
+        get(context).edit()
+                .putInt(KEY_EXTRA_DIM_PERCENT, clampExtraDimPercent(percent))
+                .apply();
+    }
+
+    static int clampExtraDimPercent(int percent) {
+        return Math.max(0, Math.min(MAX_EXTRA_DIM_PERCENT, percent));
     }
 
     static boolean hasAnyActionEnabled(Context context) {
