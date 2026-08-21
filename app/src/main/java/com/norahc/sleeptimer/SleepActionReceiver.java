@@ -19,18 +19,20 @@ public class SleepActionReceiver extends BroadcastReceiver {
 
         Context appContext = context.getApplicationContext();
         if (!AppPrefs.isEnabled(appContext)) {
+            AppPrefs.clearNextTrigger(appContext);
             return;
         }
 
-        runNow(appContext);
+        // Schedule tomorrow first so an unexpected action failure cannot break the daily chain.
         AlarmScheduler.schedule(appContext);
+        runNow(appContext);
     }
 
     static void runNow(Context context) {
         Context appContext = context.getApplicationContext();
         int paused = pauseActiveMedia(appContext);
         boolean muted = muteMediaVolume(appContext);
-        boolean locked = ScreenLockAccessibilityService.lockScreen();
+        boolean locked = lockScreenSafely();
 
         String mediaResult = MediaControlNotificationListenerService.isEnabled(appContext)
                 ? paused + "개 미디어 일시정지"
@@ -76,7 +78,9 @@ public class SleepActionReceiver extends BroadcastReceiver {
                 }
             }
         } catch (SecurityException ignored) {
-            // The user may have revoked notification access between the status check and call.
+            // Notification access can be revoked between the status check and this call.
+        } catch (RuntimeException ignored) {
+            // Vendor media-session implementations occasionally fail independently of our app.
         }
         return paused;
     }
@@ -93,7 +97,15 @@ public class SleepActionReceiver extends BroadcastReceiver {
                     AudioManager.FLAG_REMOVE_SOUND_AND_VIBRATE
             );
             return audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) == 0;
-        } catch (SecurityException ignored) {
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean lockScreenSafely() {
+        try {
+            return ScreenLockAccessibilityService.lockScreen();
+        } catch (RuntimeException ignored) {
             return false;
         }
     }
