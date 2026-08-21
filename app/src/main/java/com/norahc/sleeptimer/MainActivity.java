@@ -44,13 +44,14 @@ public class MainActivity extends Activity {
 
     private Button timeButton;
     private Button oneShotCancelButton;
+    private TextView appStatus;
     private TextView dailySummary;
     private TextView oneShotSummary;
-    private TextView readinessStatus;
-    private TextView lastRun;
     private TextView exactStatus;
     private TextView mediaStatus;
     private TextView screenStatus;
+    private LinearLayout mediaPermissionRow;
+    private LinearLayout screenPermissionRow;
     private Switch dailySwitch;
     private Switch pauseMediaSwitch;
     private Switch muteVolumeSwitch;
@@ -92,110 +93,71 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22), dp(20), dp(22), dp(30));
+        root.setPadding(dp(20), dp(20), dp(20), dp(28));
         scrollView.addView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView eyebrow = text("SLEEP ROUTINE", 12, PRIMARY);
-        eyebrow.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(eyebrow, margins(0, 0, 0, 7));
-
-        TextView title = text("수면 타이머", 32, TEXT_PRIMARY);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(title, margins(0, 0, 0, 6));
-
-        TextView subtitle = text(
-                "원하는 시각이나 잠들기 전 카운트다운에 맞춰\n재생을 멈추고 조용히 마무리합니다.",
-                16,
-                TEXT_SECONDARY
-        );
-        subtitle.setLineSpacing(2f, 1.0f);
-        root.addView(subtitle, margins(0, 0, 0, 22));
-
+        root.addView(buildHeader(), margins(0, 0, 0, 18));
         root.addView(buildDailyCard(), margins(0, 0, 0, 12));
         root.addView(buildQuickTimerCard(), margins(0, 0, 0, 12));
         root.addView(buildActionsCard(), margins(0, 0, 0, 12));
-        root.addView(buildTestCard(), margins(0, 0, 0, 22));
-
-        TextView permissionsTitle = text("권한 및 접근", 20, TEXT_PRIMARY);
-        permissionsTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(permissionsTitle, margins(0, 0, 0, 10));
-
-        LinearLayout permissionsCard = card();
-        exactStatus = addPermissionRow(
-                permissionsCard,
-                "정확한 알람",
-                "정확한 시각에 실행 · 미허용 시 근사 예약",
-                "설정",
-                v -> openExactAlarmSettings()
-        );
-        addDivider(permissionsCard);
-        mediaStatus = addPermissionRow(
-                permissionsCard,
-                "미디어 제어",
-                "YouTube·CHZZK·브라우저에 일시정지 요청",
-                "설정",
-                v -> openNotificationSettings()
-        );
-        addDivider(permissionsCard);
-        screenStatus = addPermissionRow(
-                permissionsCard,
-                "화면 잠금",
-                "접근성의 잠금 동작만 사용",
-                "설정",
-                v -> openAccessibilitySettings()
-        );
-        root.addView(permissionsCard, margins(0, 0, 0, 12));
-
-        readinessStatus = text("", 13, TEXT_SECONDARY);
-        readinessStatus.setGravity(Gravity.CENTER);
-        readinessStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        root.addView(readinessStatus, margins(0, 2, 0, 20));
-
-        LinearLayout noteCard = card();
-        TextView noteTitle = text("작동 방식", 16, TEXT_PRIMARY);
-        noteTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        noteCard.addView(noteTitle, margins(0, 0, 0, 7));
-        noteCard.addView(text(
-                "매일 예약과 일회성 타이머는 서로 독립적으로 동작합니다. 재부팅·시간 변경·앱 업데이트 뒤에도 남아 있는 예약을 다시 구성합니다.\n\n미디어 제어는 Android가 노출한 활성 미디어 세션에만 일시정지를 요청합니다. 화면 잠금 접근성 서비스는 화면 내용을 읽지 않으며 잠금 동작 하나만 호출합니다.",
-                13,
-                TEXT_SECONDARY
-        ));
-        root.addView(noteCard, margins(0, 0, 0, 18));
-
-        lastRun = text("", 12, TEXT_SECONDARY);
-        lastRun.setGravity(Gravity.CENTER);
-        lastRun.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        root.addView(lastRun);
+        root.addView(buildPermissionsCard(), margins(0, 0, 0, 12));
+        root.addView(buildTestButton());
 
         return scrollView;
     }
 
+    private View buildHeader() {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView title = text("수면 타이머", 29, TEXT_PRIMARY);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        row.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        appStatus = text("대기", 12, NEUTRAL);
+        appStatus.setGravity(Gravity.CENTER);
+        appStatus.setTypeface(null, android.graphics.Typeface.BOLD);
+        appStatus.setPadding(dp(12), dp(7), dp(12), dp(7));
+        appStatus.setBackground(round(SURFACE_RAISED, 16));
+        appStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        row.addView(appStatus);
+        return row;
+    }
+
     private View buildDailyCard() {
         LinearLayout card = card();
-        card.addView(text("매일 자동 실행", 13, TEXT_SECONDARY), margins(0, 0, 0, 4));
 
-        timeButton = button(AppPrefs.formatTime(hour, minute), true);
-        timeButton.setTextSize(36);
-        timeButton.setContentDescription("매일 실행 시각 변경");
-        timeButton.setOnClickListener(v -> showTimePicker());
-        card.addView(timeButton, margins(0, 0, 0, 14));
-
-        LinearLayout switchRow = new LinearLayout(this);
-        switchRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView switchCopy = text("지정한 시각에 매일 실행", 16, TEXT_PRIMARY);
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = text("매일 종료", 17, TEXT_PRIMARY);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
         dailySwitch = new Switch(this);
         dailySwitch.setId(View.generateViewId());
-        dailySwitch.setContentDescription("매일 자동 실행 켜기 또는 끄기");
-        switchCopy.setLabelFor(dailySwitch.getId());
-        switchRow.addView(switchCopy, new LinearLayout.LayoutParams(0, dp(52), 1f));
-        switchRow.addView(dailySwitch, new LinearLayout.LayoutParams(
+        dailySwitch.setContentDescription("매일 자동 종료 켜기 또는 끄기");
+        title.setLabelFor(dailySwitch.getId());
+        top.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        top.addView(dailySwitch, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(52)
+                dp(48)
         ));
-        card.addView(switchRow);
+        card.addView(top, margins(0, 0, 0, 7));
+
+        timeButton = button(AppPrefs.formatTime(hour, minute), true);
+        timeButton.setTextSize(35);
+        timeButton.setContentDescription("매일 종료 시각 변경");
+        timeButton.setOnClickListener(v -> showTimePicker());
+        card.addView(timeButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(64)
+        ));
+
+        dailySummary = text("", 13, TEXT_SECONDARY);
+        dailySummary.setGravity(Gravity.CENTER_HORIZONTAL);
+        dailySummary.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        card.addView(dailySummary, margins(0, 11, 0, 0));
 
         dailySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (updatingSwitches) {
@@ -206,54 +168,56 @@ public class MainActivity extends Activity {
                 boolean scheduled = AlarmScheduler.scheduleDaily(this);
                 if (!scheduled) {
                     AppPrefs.setEnabled(this, false);
-                    Toast.makeText(this, "예약을 만들 수 없습니다. 잠시 후 다시 시도하세요.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "예약을 만들 수 없습니다.", Toast.LENGTH_LONG).show();
                 } else if (!AlarmScheduler.canScheduleExactAlarms(this)) {
-                    Toast.makeText(
-                            this,
-                            "현재는 근사 시각으로 예약됩니다. 정확한 실행을 원하면 알람 및 리마인더 권한을 허용하세요.",
-                            Toast.LENGTH_LONG
-                    ).show();
+                    Toast.makeText(this, "정확한 알람 권한이 없어 근사 시각으로 예약됩니다.", Toast.LENGTH_LONG).show();
                 }
             } else {
                 AlarmScheduler.cancelDaily(this);
             }
             refresh();
         });
-
-        dailySummary = text("", 14, TEXT_SECONDARY);
-        dailySummary.setLineSpacing(1f, 1.1f);
-        dailySummary.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        card.addView(dailySummary, margins(0, 8, 0, 0));
         return card;
     }
 
     private View buildQuickTimerCard() {
         LinearLayout card = card();
-        TextView title = text("빠른 타이머", 17, TEXT_PRIMARY);
+        TextView title = text("일회성 타이머", 17, TEXT_PRIMARY);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        card.addView(title, margins(0, 0, 0, 4));
-        card.addView(text(
-                "한 번만 실행할 카운트다운을 설정합니다. 매일 예약과 함께 사용할 수 있습니다.",
-                13,
-                TEXT_SECONDARY
-        ), margins(0, 0, 0, 13));
+        card.addView(title, margins(0, 0, 0, 12));
 
-        card.addView(presetRow(15, 30), margins(0, 0, 0, 8));
-        card.addView(presetRow(60, 90), margins(0, 0, 0, 8));
+        LinearLayout presets = new LinearLayout(this);
+        presets.setOrientation(LinearLayout.HORIZONTAL);
+        int[] minutes = {15, 30, 60, 90};
+        for (int i = 0; i < minutes.length; i++) {
+            int value = minutes[i];
+            Button preset = button(value + "분", false);
+            preset.setTextSize(14);
+            preset.setContentDescription(value + "분 후 일회성 타이머 설정");
+            preset.setOnClickListener(v -> startQuickTimer(value));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), 1f);
+            if (i > 0) {
+                params.setMarginStart(dp(4));
+            }
+            if (i < minutes.length - 1) {
+                params.setMarginEnd(dp(4));
+            }
+            presets.addView(preset, params);
+        }
+        card.addView(presets);
 
         Button custom = button("직접 입력", false);
         custom.setContentDescription("일회성 타이머 시간을 직접 입력");
         custom.setOnClickListener(v -> showCustomTimerDialog());
-        card.addView(custom, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(48)
-        ));
+        card.addView(custom, margins(0, 8, 0, 0));
+        custom.getLayoutParams().height = dp(44);
 
-        oneShotSummary = text("", 14, TEXT_SECONDARY);
+        oneShotSummary = text("", 13, TEXT_SECONDARY);
+        oneShotSummary.setGravity(Gravity.CENTER_HORIZONTAL);
         oneShotSummary.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        card.addView(oneShotSummary, margins(0, 13, 0, 9));
+        card.addView(oneShotSummary, margins(0, 12, 0, 7));
 
-        oneShotCancelButton = button("일회성 타이머 취소", false);
+        oneShotCancelButton = button("타이머 취소", false);
         oneShotCancelButton.setOnClickListener(v -> {
             AlarmScheduler.cancelOneShot(this);
             Toast.makeText(this, "일회성 타이머를 취소했습니다.", Toast.LENGTH_SHORT).show();
@@ -261,113 +225,105 @@ public class MainActivity extends Activity {
         });
         card.addView(oneShotCancelButton, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(42)
         ));
         return card;
     }
 
     private View buildActionsCard() {
         LinearLayout card = card();
-        TextView title = text("실행 동작", 17, TEXT_PRIMARY);
+        TextView title = text("종료할 때", 17, TEXT_PRIMARY);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
-        card.addView(title, margins(0, 0, 0, 4));
-        card.addView(text(
-                "타이머가 끝났을 때 수행할 동작을 고릅니다. 최소 1개는 켜져 있어야 합니다.",
-                13,
-                TEXT_SECONDARY
-        ), margins(0, 0, 0, 8));
+        card.addView(title, margins(0, 0, 0, 5));
 
-        pauseMediaSwitch = addActionRow(
-                card,
-                "미디어 일시정지",
-                "활성 미디어 세션에 일시정지 요청"
-        );
+        pauseMediaSwitch = addActionRow(card, "재생 일시정지");
         pauseMediaSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
                 handleActionToggle(ACTION_PAUSE_MEDIA, pauseMediaSwitch, isChecked));
 
         addDivider(card);
-        muteVolumeSwitch = addActionRow(
-                card,
-                "미디어 음량 0",
-                "음악/영상 스트림의 음량을 0으로 변경"
-        );
+        muteVolumeSwitch = addActionRow(card, "미디어 음량 0");
         muteVolumeSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
                 handleActionToggle(ACTION_MUTE_VOLUME, muteVolumeSwitch, isChecked));
 
         addDivider(card);
-        lockScreenSwitch = addActionRow(
-                card,
-                "화면 잠금",
-                "접근성 전역 잠금 동작 실행"
-        );
+        lockScreenSwitch = addActionRow(card, "화면 잠금");
         lockScreenSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
                 handleActionToggle(ACTION_LOCK_SCREEN, lockScreenSwitch, isChecked));
         return card;
     }
 
-    private View buildTestCard() {
+    private View buildPermissionsCard() {
         LinearLayout card = card();
-        TextView title = text("동작 확인", 16, TEXT_PRIMARY);
+        TextView title = text("권한", 17, TEXT_PRIMARY);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         card.addView(title, margins(0, 0, 0, 5));
-        card.addView(text(
-                "현재 선택한 실행 동작을 즉시 테스트합니다. 화면 잠금을 켰다면 테스트 직후 화면이 잠깁니다.",
-                14,
-                TEXT_SECONDARY
-        ), margins(0, 0, 0, 13));
-        Button testButton = button("지금 테스트", false);
-        testButton.setOnClickListener(v -> confirmTest());
-        card.addView(testButton, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(50)
-        ));
+
+        exactStatus = permissionStatus();
+        card.addView(permissionRow("정확한 알람", exactStatus, v -> openExactAlarmSettings()));
+        addDivider(card);
+
+        mediaStatus = permissionStatus();
+        mediaPermissionRow = permissionRow("미디어 제어", mediaStatus, v -> openNotificationSettings());
+        card.addView(mediaPermissionRow);
+        addDivider(card);
+
+        screenStatus = permissionStatus();
+        screenPermissionRow = permissionRow("화면 잠금", screenStatus, v -> openAccessibilitySettings());
+        card.addView(screenPermissionRow);
         return card;
     }
 
-    private LinearLayout presetRow(int leftMinutes, int rightMinutes) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button left = button("+" + leftMinutes + "분", false);
-        left.setContentDescription(leftMinutes + "분 후 일회성 타이머 설정");
-        left.setOnClickListener(v -> startQuickTimer(leftMinutes));
-        LinearLayout.LayoutParams leftParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        leftParams.setMarginEnd(dp(4));
-        row.addView(left, leftParams);
-
-        Button right = button("+" + rightMinutes + "분", false);
-        right.setContentDescription(rightMinutes + "분 후 일회성 타이머 설정");
-        right.setOnClickListener(v -> startQuickTimer(rightMinutes));
-        LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        rightParams.setMarginStart(dp(4));
-        row.addView(right, rightParams);
-        return row;
+    private View buildTestButton() {
+        Button test = button("동작 테스트", false);
+        test.setContentDescription("현재 선택한 종료 동작을 즉시 테스트");
+        test.setOnClickListener(v -> confirmTest());
+        return test;
     }
 
-    private Switch addActionRow(LinearLayout parent, String title, String detail) {
+    private Switch addActionRow(LinearLayout parent, String title) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(5), 0, dp(5));
 
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
         TextView titleView = text(title, 15, TEXT_PRIMARY);
-        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
-        copy.addView(titleView);
-        copy.addView(text(detail, 12, TEXT_SECONDARY), margins(0, 3, 0, 0));
-
         Switch toggle = new Switch(this);
         toggle.setId(View.generateViewId());
         toggle.setContentDescription(title + " 켜기 또는 끄기");
         titleView.setLabelFor(toggle.getId());
 
-        row.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(titleView, new LinearLayout.LayoutParams(0, dp(50), 1f));
         row.addView(toggle, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(52)
+                dp(50)
         ));
         parent.addView(row);
         return toggle;
+    }
+
+    private LinearLayout permissionRow(String title, TextView status, View.OnClickListener listener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(3), 0, dp(3));
+
+        TextView titleView = text(title, 14, TEXT_PRIMARY);
+        row.addView(titleView, new LinearLayout.LayoutParams(0, dp(46), 1f));
+
+        status.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        row.addView(status, new LinearLayout.LayoutParams(dp(88), dp(46)));
+
+        Button action = button("설정", false);
+        action.setTextSize(12);
+        action.setContentDescription(title + " 설정 열기");
+        action.setOnClickListener(listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(64), dp(40));
+        params.setMarginStart(dp(8));
+        row.addView(action, params);
+        return row;
+    }
+
+    private TextView permissionStatus() {
+        TextView status = text("확인 중", 12, NEUTRAL);
+        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        return status;
     }
 
     private void handleActionToggle(int action, Switch changedSwitch, boolean enabled) {
@@ -381,7 +337,7 @@ public class MainActivity extends Activity {
             updatingSwitches = true;
             changedSwitch.setChecked(true);
             updatingSwitches = false;
-            Toast.makeText(this, "최소 1개의 실행 동작은 켜져 있어야 합니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "종료 동작을 하나 이상 켜야 합니다.", Toast.LENGTH_SHORT).show();
         }
         refresh();
     }
@@ -394,37 +350,6 @@ public class MainActivity extends Activity {
         } else if (action == ACTION_LOCK_SCREEN) {
             AppPrefs.setLockScreen(this, enabled);
         }
-    }
-
-    private TextView addPermissionRow(
-            LinearLayout parent,
-            String title,
-            String detail,
-            String buttonText,
-            View.OnClickListener listener
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(4), 0, dp(4));
-
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        TextView titleView = text(title, 15, TEXT_PRIMARY);
-        titleView.setTypeface(null, android.graphics.Typeface.BOLD);
-        copy.addView(titleView);
-        copy.addView(text(detail, 12, TEXT_SECONDARY), margins(0, 3, 0, 0));
-        TextView status = text("확인 중", 12, WARNING);
-        status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        copy.addView(status, margins(0, 5, 0, 0));
-
-        row.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button action = button(buttonText, false);
-        action.setTextSize(13);
-        action.setContentDescription(title + " 설정 열기");
-        action.setOnClickListener(listener);
-        row.addView(action, new LinearLayout.LayoutParams(dp(76), dp(44)));
-        parent.addView(row);
-        return status;
     }
 
     private void addDivider(LinearLayout parent) {
@@ -452,7 +377,7 @@ public class MainActivity extends Activity {
                 minute,
                 true
         );
-        dialog.setTitle("매일 실행 시각");
+        dialog.setTitle("매일 종료 시각");
         dialog.show();
     }
 
@@ -465,10 +390,10 @@ public class MainActivity extends Activity {
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("일회성 타이머")
-                .setMessage("몇 분 후 실행할지 입력하세요. 최대 24시간까지 설정할 수 있습니다.")
+                .setMessage("몇 분 후 종료할지 입력하세요. 최대 24시간까지 설정할 수 있습니다.")
                 .setView(input)
                 .setNegativeButton("취소", null)
-                .setPositiveButton("예약", null)
+                .setPositiveButton("설정", null)
                 .create();
 
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
@@ -494,18 +419,18 @@ public class MainActivity extends Activity {
 
     private boolean startQuickTimer(int minutes) {
         if (!AppPrefs.hasAnyActionEnabled(this)) {
-            Toast.makeText(this, "실행 동작을 하나 이상 켜세요.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "종료 동작을 하나 이상 켜세요.", Toast.LENGTH_SHORT).show();
             return false;
         }
         if (!AlarmScheduler.scheduleOneShotAfter(this, minutes)) {
-            Toast.makeText(this, "일회성 타이머를 예약할 수 없습니다.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "일회성 타이머를 설정할 수 없습니다.", Toast.LENGTH_LONG).show();
             refresh();
             return false;
         }
 
-        String message = minutes + "분 후 실행하도록 예약했습니다.";
+        String message = minutes + "분 후 종료합니다.";
         if (!AlarmScheduler.canScheduleExactAlarms(this)) {
-            message += " 정확한 알람 권한이 없어 실제 실행은 늦어질 수 있습니다.";
+            message += " 정확한 알람 권한이 없어 실행이 늦어질 수 있습니다.";
         }
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         refresh();
@@ -514,24 +439,21 @@ public class MainActivity extends Activity {
 
     private void confirmTest() {
         if (!AppPrefs.hasAnyActionEnabled(this)) {
-            Toast.makeText(this, "실행 동작을 하나 이상 켜세요.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "종료 동작을 하나 이상 켜세요.", Toast.LENGTH_SHORT).show();
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("지금 실행할까요?")
-                .setMessage("선택한 동작: " + configuredActionsLabel())
+                .setTitle("동작을 테스트할까요?")
+                .setMessage(configuredActionsLabel())
                 .setNegativeButton("취소", null)
-                .setPositiveButton("실행", (dialog, which) -> {
-                    SleepActionReceiver.runNow(this);
-                    refresh();
-                })
+                .setPositiveButton("실행", (dialog, which) -> SleepActionReceiver.runNow(this))
                 .show();
     }
 
     private String configuredActionsLabel() {
         List<String> actions = new ArrayList<>();
         if (AppPrefs.shouldPauseMedia(this)) {
-            actions.add("미디어 일시정지");
+            actions.add("재생 일시정지");
         }
         if (AppPrefs.shouldMuteVolume(this)) {
             actions.add("음량 0");
@@ -540,9 +462,9 @@ public class MainActivity extends Activity {
             actions.add("화면 잠금");
         }
 
-        StringBuilder value = new StringBuilder();
+        StringBuilder value = new StringBuilder("실행: ");
         for (String action : actions) {
-            if (value.length() > 0) {
+            if (value.length() > 4) {
                 value.append(", ");
             }
             value.append(action);
@@ -561,7 +483,7 @@ public class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName())
             ));
         } catch (Exception ignored) {
-            openAppDetails("정확한 알람 설정을 직접 열 수 없습니다. 앱 설정에서 알람 권한을 확인하세요.");
+            openAppDetails("앱 설정에서 알람 권한을 확인하세요.");
         }
     }
 
@@ -569,7 +491,7 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
         } catch (Exception ignored) {
-            openAppDetails("알림 접근 설정을 직접 열 수 없습니다. 앱 설정을 확인하세요.");
+            openAppDetails("앱 설정에서 미디어 제어 권한을 확인하세요.");
         }
     }
 
@@ -577,7 +499,7 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
         } catch (Exception ignored) {
-            openAppDetails("접근성 설정을 직접 열 수 없습니다. 앱 설정을 확인하세요.");
+            openAppDetails("앱 설정에서 접근성 권한을 확인하세요.");
         }
     }
 
@@ -590,7 +512,7 @@ public class MainActivity extends Activity {
             );
             startActivity(intent);
         } catch (Exception ignored) {
-            // There is no further system settings page we can safely open.
+            // No further settings page is available.
         }
     }
 
@@ -617,79 +539,71 @@ public class MainActivity extends Activity {
 
         if (dailyEnabled) {
             long next = AlarmScheduler.getNextDailyTrigger(this);
-            dailySummary.setText(
-                    "다음 실행 " + AppPrefs.formatDateTime(next)
-                            + (AppPrefs.isNextTriggerExact(this) ? " · 정확한 알람" : " · 근사 알람")
-            );
+            if (AlarmScheduler.isDailyOverrideActive(this)) {
+                dailySummary.setText(
+                        "오늘만 " + AppPrefs.formatClockTime(next)
+                                + " · 기본 " + AppPrefs.formatTime(hour, minute)
+                );
+            } else {
+                dailySummary.setText(
+                        "다음 종료 " + AppPrefs.formatDateTime(next)
+                                + (AppPrefs.isNextTriggerExact(this) ? "" : " · 근사")
+                );
+            }
         } else {
-            dailySummary.setText("꺼짐 · 원하는 시각을 선택한 뒤 스위치를 켜세요.");
+            dailySummary.setText("사용 안 함");
         }
 
         if (oneShotActive) {
             long trigger = AlarmScheduler.getOneShotTrigger(this);
-            oneShotSummary.setText(
-                    remainingLabel(trigger) + " · " + AppPrefs.formatDateTime(trigger)
-                            + (AppPrefs.isOneShotExact(this) ? " · 정확한 알람" : " · 근사 알람")
-            );
-            oneShotCancelButton.setEnabled(true);
-            oneShotCancelButton.setAlpha(1f);
+            oneShotSummary.setText(remainingLabel(trigger) + " · " + AppPrefs.formatClockTime(trigger));
+            oneShotSummary.setVisibility(View.VISIBLE);
+            oneShotCancelButton.setVisibility(View.VISIBLE);
         } else {
-            oneShotSummary.setText("설정된 일회성 타이머가 없습니다.");
-            oneShotCancelButton.setEnabled(false);
-            oneShotCancelButton.setAlpha(0.45f);
+            oneShotSummary.setVisibility(View.GONE);
+            oneShotCancelButton.setVisibility(View.GONE);
         }
 
         boolean anyTimerActive = dailyEnabled || oneShotActive;
-        int missing = 0;
-        if (anyTimerActive && !exact) {
-            missing++;
-        }
-        if (pauseMedia && !mediaAccess) {
-            missing++;
-        }
-        if (lockScreen && !screenAccess) {
-            missing++;
-        }
-
-        if (missing == 0) {
-            readinessStatus.setText(anyTimerActive
-                    ? "● 예약과 실행 동작이 준비되었습니다."
-                    : "● 실행 동작이 준비되었습니다.");
-            readinessStatus.setTextColor(POSITIVE);
+        boolean missingRequiredAccess = (pauseMedia && !mediaAccess) || (lockScreen && !screenAccess);
+        if (missingRequiredAccess) {
+            setAppStatus("권한 확인", WARNING);
+        } else if (anyTimerActive) {
+            setAppStatus("작동 중", POSITIVE);
         } else {
-            readinessStatus.setText("○ 설정 또는 권한 " + missing + "개를 확인해 주세요.");
-            readinessStatus.setTextColor(WARNING);
+            setAppStatus("대기", NEUTRAL);
         }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            setNeutralStatus(exactStatus, "● 별도 권한 필요 없음");
+            setNeutralStatus(exactStatus, "필요 없음");
         } else if (exact) {
             setStatus(exactStatus, true, "허용됨");
         } else if (anyTimerActive) {
-            setStatus(exactStatus, false, "근사 알람 사용 중");
+            setStatus(exactStatus, false, "근사 사용");
         } else {
-            setNeutralStatus(exactStatus, "○ 선택 사항");
+            setNeutralStatus(exactStatus, "선택 사항");
         }
 
-        if (!pauseMedia) {
-            setNeutralStatus(mediaStatus, "○ 사용 안 함");
-        } else {
-            setStatus(mediaStatus, mediaAccess, mediaAccess ? "허용됨" : "허용 필요");
+        mediaPermissionRow.setVisibility(pauseMedia ? View.VISIBLE : View.GONE);
+        if (pauseMedia) {
+            setStatus(mediaStatus, mediaAccess, mediaAccess ? "허용됨" : "설정 필요");
         }
 
-        if (!lockScreen) {
-            setNeutralStatus(screenStatus, "○ 사용 안 함");
-        } else {
-            setStatus(screenStatus, screenAccess, screenAccess ? "허용됨" : "허용 필요");
+        screenPermissionRow.setVisibility(lockScreen ? View.VISIBLE : View.GONE);
+        if (lockScreen) {
+            setStatus(screenStatus, screenAccess, screenAccess ? "허용됨" : "설정 필요");
         }
+    }
 
-        lastRun.setText(getString(R.string.last_run, AppPrefs.getLastRun(this)));
+    private void setAppStatus(String label, int color) {
+        appStatus.setText(label);
+        appStatus.setTextColor(color);
     }
 
     private String remainingLabel(long trigger) {
         long remaining = trigger - System.currentTimeMillis();
         if (remaining <= 0L) {
-            return "곧 실행";
+            return "곧 종료";
         }
         long totalMinutes = Math.max(1L, (remaining + 59_999L) / 60_000L);
         if (totalMinutes < 60L) {
@@ -704,7 +618,7 @@ public class MainActivity extends Activity {
     }
 
     private void setStatus(TextView view, boolean good, String label) {
-        view.setText(getString(good ? R.string.permission_allowed : R.string.permission_required, label));
+        view.setText(label);
         view.setTextColor(good ? POSITIVE : WARNING);
     }
 
@@ -735,8 +649,8 @@ public class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(17), dp(16), dp(17), dp(16));
-        card.setBackground(round(SURFACE, 20));
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        card.setBackground(round(SURFACE, 18));
         return card;
     }
 
@@ -744,14 +658,14 @@ public class MainActivity extends Activity {
         Button view = new Button(this);
         view.setText(label);
         view.setTextColor(prominent ? BG : TEXT_PRIMARY);
-        view.setTextSize(15);
+        view.setTextSize(14);
         view.setGravity(Gravity.CENTER);
         view.setTypeface(null, android.graphics.Typeface.BOLD);
         view.setAllCaps(false);
         view.setMinHeight(0);
         view.setMinWidth(0);
-        view.setPadding(dp(12), 0, dp(12), 0);
-        view.setBackground(round(prominent ? PRIMARY : SURFACE_RAISED, 14));
+        view.setPadding(dp(10), 0, dp(10), 0);
+        view.setBackground(round(prominent ? PRIMARY : SURFACE_RAISED, 13));
         return view;
     }
 
