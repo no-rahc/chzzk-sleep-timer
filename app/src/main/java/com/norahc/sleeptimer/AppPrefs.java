@@ -14,6 +14,8 @@ final class AppPrefs {
     private static final String KEY_MINUTE = "minute";
     private static final String KEY_LAST_RUN = "last_run";
     private static final String KEY_LAST_RESULT = "last_result";
+    private static final String KEY_NEXT_TRIGGER = "next_trigger";
+    private static final String KEY_NEXT_TRIGGER_EXACT = "next_trigger_exact";
 
     private AppPrefs() {
     }
@@ -45,6 +47,28 @@ final class AppPrefs {
                 .apply();
     }
 
+    static void setNextTrigger(Context context, long timestamp, boolean exact) {
+        get(context).edit()
+                .putLong(KEY_NEXT_TRIGGER, timestamp)
+                .putBoolean(KEY_NEXT_TRIGGER_EXACT, exact)
+                .apply();
+    }
+
+    static long getNextTrigger(Context context) {
+        return get(context).getLong(KEY_NEXT_TRIGGER, 0L);
+    }
+
+    static boolean isNextTriggerExact(Context context) {
+        return get(context).getBoolean(KEY_NEXT_TRIGGER_EXACT, false);
+    }
+
+    static void clearNextTrigger(Context context) {
+        get(context).edit()
+                .remove(KEY_NEXT_TRIGGER)
+                .remove(KEY_NEXT_TRIGGER_EXACT)
+                .apply();
+    }
+
     static void recordLastRun(Context context, String result) {
         get(context).edit()
                 .putLong(KEY_LAST_RUN, System.currentTimeMillis())
@@ -65,5 +89,10 @@ final class AppPrefs {
 
     static String formatTime(int hour, int minute) {
         return String.format(Locale.KOREA, "%02d:%02d", hour, minute);
+    }
+
+    static String formatDateTime(long timestamp) {
+        return new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREA)
+                .format(new Date(timestamp));
     }
 }
