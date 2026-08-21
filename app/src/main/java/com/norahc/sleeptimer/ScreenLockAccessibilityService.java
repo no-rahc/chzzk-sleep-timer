@@ -5,6 +5,11 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 
@@ -13,15 +18,20 @@ import java.util.List;
 public class ScreenLockAccessibilityService extends AccessibilityService {
     private static volatile ScreenLockAccessibilityService instance;
 
+    private WindowManager windowManager;
+    private View dimOverlay;
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        applyExtraDim(AppPrefs.getExtraDimPercent(this));
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // This service only needs the global lock-screen action.
+        // This service does not inspect accessibility events or window content.
     }
 
     @Override
@@ -67,6 +77,10 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         return false;
     }
 
+    static boolean isConnected() {
+        return instance != null;
+    }
+
     static boolean lockScreen() {
         ScreenLockAccessibilityService service = instance;
         if (service == null) {
@@ -75,7 +89,84 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN);
     }
 
+    static boolean setExtraDimPercent(Context context, int percent) {
+        int safePercent = AppPrefs.clampExtraDimPercent(percent);
+        AppPrefs.setExtraDimPercent(context, safePercent);
+
+        ScreenLockAccessibilityService service = instance;
+        if (service == null) {
+            return false;
+        }
+        service.applyExtraDim(safePercent);
+        return true;
+    }
+
+    private void applyExtraDim(int percent) {
+        int safePercent = AppPrefs.clampExtraDimPercent(percent);
+        if (safePercent <= 0) {
+            removeDimOverlay();
+            return;
+        }
+
+        if (windowManager == null) {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        }
+        if (windowManager == null) {
+            return;
+        }
+
+        if (dimOverlay == null) {
+            View overlay = new View(this);
+            overlay.setBackgroundColor(Color.BLACK);
+            overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+            );
+            params.gravity = Gravity.TOP | Gravity.START;
+            params.alpha = safePercent / 100f;
+
+            try {
+                windowManager.addView(overlay, params);
+                dimOverlay = overlay;
+            } catch (RuntimeException ignored) {
+                // The service can be disconnected while the overlay is being attached.
+            }
+            return;
+        }
+
+        WindowManager.LayoutParams params = (WindowManager.LayoutParams) dimOverlay.getLayoutParams();
+        params.alpha = safePercent / 100f;
+        try {
+            windowManager.updateViewLayout(dimOverlay, params);
+        } catch (RuntimeException ignored) {
+            removeDimOverlay();
+        }
+    }
+
+    private void removeDimOverlay() {
+        if (dimOverlay == null || windowManager == null) {
+            dimOverlay = null;
+            return;
+        }
+        try {
+            windowManager.removeView(dimOverlay);
+        } catch (RuntimeException ignored) {
+            // It may already have been detached by the system.
+        } finally {
+            dimOverlay = null;
+        }
+    }
+
     private void clearInstance() {
+        removeDimOverlay();
         if (instance == this) {
             instance = null;
         }

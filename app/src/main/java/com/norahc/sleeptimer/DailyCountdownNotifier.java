@@ -18,6 +18,7 @@ final class DailyCountdownNotifier {
     private static final String CHANNEL_NAME = "매일 수면 타이머";
     private static final int NOTIFICATION_ID = 5201;
     private static final int REQUEST_OPEN_APP = 5202;
+    private static final int REQUEST_BRIGHTNESS = 5204;
 
     private static boolean permissionRequestInFlight;
 
@@ -88,6 +89,15 @@ final class DailyCountdownNotifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        Intent brightnessIntent = new Intent(appContext, BrightnessControlActivity.class)
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent brightnessControl = PendingIntent.getActivity(
+                appContext,
+                REQUEST_BRIGHTNESS,
+                brightnessIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
         String baseTime = AppPrefs.formatTime(
                 AppPrefs.getHour(appContext),
                 AppPrefs.getMinute(appContext)
@@ -110,6 +120,7 @@ final class DailyCountdownNotifier {
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setContentIntent(openApp)
+                .addAction(R.drawable.ic_brightness_notification, "밝기", brightnessControl)
                 .build();
 
         try {
