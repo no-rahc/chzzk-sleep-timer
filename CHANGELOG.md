@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.1 - 2026-08-21
+
+### In-place controls
+- The persistent notification `밝기` action now opens an accessibility overlay directly above the app currently on screen instead of switching into the sleep-timer app.
+- The notification `연장` action uses the same in-place overlay when the screen-control accessibility service is connected.
+- The recurring 10-minute warning now appears as a compact accessibility overlay above the current app with +5 / +20 / +40 minute choices; an ordinary notification remains as a fallback and the display is never woken just for the warning.
+- Brightness and extension panels remain capped in width on tablets and do not require the separate draw-over-other-apps permission.
+
+### Scheduling UX
+- Daily time selection now forces Android's 24-hour spinner-style hour/minute picker instead of the clock-face picker.
+- Removed the no-longer-used full-screen warning permission and manifest activity entry.
+
+### Notification polish
+- Replaced the generic `타이머가 작동 중입니다` title with the actual shutdown time and timer type, such as `01:00 종료 · 매일` or `23:18 종료 · 일회성`.
+- Kept the system countdown chronometer and moved recurring/override context into a short secondary line so shutdown time and remaining time are easier to scan together.
+
 ## 1.3.0 - 2026-08-21
 
 ### UI refresh
