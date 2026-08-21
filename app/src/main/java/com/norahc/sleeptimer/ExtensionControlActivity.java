@@ -1,10 +1,13 @@
 package com.norahc.sleeptimer;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.graphics.Typeface;
 import android.os.Bundle;
-import android.view.Window;
-import android.view.WindowManager;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public final class ExtensionControlActivity extends Activity {
@@ -13,6 +16,7 @@ public final class ExtensionControlActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setFinishOnTouchOutside(true);
 
         String requestedTarget = getIntent() == null
                 ? null
@@ -30,48 +34,86 @@ public final class ExtensionControlActivity extends Activity {
             return;
         }
 
-        String[] choices = {
-                "+5분  ·  " + AppPrefs.formatClockTime(currentTrigger + 5L * 60_000L),
-                "+20분 ·  " + AppPrefs.formatClockTime(currentTrigger + 20L * 60_000L),
-                "+40분 ·  " + AppPrefs.formatClockTime(currentTrigger + 40L * 60_000L)
-        };
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(10), dp(20), dp(20));
+        panel.setBackground(UiKit.roundedStroke(
+                this,
+                UiKit.SURFACE,
+                24,
+                UiKit.DIVIDER
+        ));
 
-        String title = AlarmScheduler.TIMER_SOURCE_ONE_SHOT.equals(target)
+        LinearLayout handleRow = new LinearLayout(this);
+        handleRow.setGravity(Gravity.CENTER);
+        handleRow.addView(UiKit.dragHandle(this), new LinearLayout.LayoutParams(dp(38), dp(4)));
+        panel.addView(handleRow, margins(0, 0, 0, 15));
+
+        String titleText = AlarmScheduler.TIMER_SOURCE_ONE_SHOT.equals(target)
                 ? "일회성 타이머 연장"
                 : "오늘만 연장";
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setItems(choices, (ignored, which) -> {
-                    if (which >= 0 && which < EXTENSION_MINUTES.length) {
-                        DailyWarningReceiver.extendTarget(this, target, EXTENSION_MINUTES[which]);
-                    }
-                    finish();
-                })
-                .setNegativeButton("취소", (ignored, which) -> finish())
-                .create();
-        dialog.setOnDismissListener(ignored -> finish());
-        dialog.show();
-        applyCompactDialog(dialog);
-    }
+        TextView title = UiKit.text(this, titleText, 20, UiKit.TEXT_PRIMARY);
+        title.setTypeface(null, Typeface.BOLD);
+        panel.addView(title);
 
-    private void applyCompactDialog(AlertDialog dialog) {
-        Window window = dialog.getWindow();
-        if (window == null) {
-            return;
+        TextView current = UiKit.text(
+                this,
+                "현재 종료 " + AppPrefs.formatClockTime(currentTrigger),
+                13,
+                UiKit.TEXT_SECONDARY
+        );
+        panel.addView(current, margins(0, 5, 0, 16));
+
+        LinearLayout choices = new LinearLayout(this);
+        choices.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < EXTENSION_MINUTES.length; i++) {
+            int minutes = EXTENSION_MINUTES[i];
+            String label = "+" + minutes + "분\n" + AppPrefs.formatClockTime(currentTrigger + minutes * 60_000L);
+            Button choice = UiKit.chip(this, label, minutes == 20);
+            choice.setTextSize(13);
+            choice.setLines(2);
+            choice.setContentDescription(minutes + "분 연장");
+            choice.setOnClickListener(v -> {
+                DailyWarningReceiver.extendTarget(this, target, minutes);
+                finish();
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(58), 1f);
+            if (i > 0) {
+                params.setMarginStart(dp(7));
+            }
+            choices.addView(choice, params);
         }
-        WindowManager.LayoutParams attributes = window.getAttributes();
-        attributes.dimAmount = 0.12f;
-        window.setAttributes(attributes);
-        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        window.setLayout(compactWidth(0.82f, 340), WindowManager.LayoutParams.WRAP_CONTENT);
+        panel.addView(choices);
+
+        Button cancel = UiKit.button(this, "취소", false);
+        cancel.setOnClickListener(v -> finish());
+        panel.addView(cancel, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        ));
+        ((LinearLayout.LayoutParams) cancel.getLayoutParams()).setMargins(0, dp(12), 0, 0);
+
+        setContentView(panel);
+        UiKit.applyFloatingWindow(
+                this,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL,
+                520,
+                16,
+                16,
+                0.08f
+        );
     }
 
-    private int compactWidth(float fraction, int maxDp) {
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        return Math.min(Math.round(screenWidth * fraction), dp(maxDp));
+    private LinearLayout.LayoutParams margins(int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(dp(left), dp(top), dp(right), dp(bottom));
+        return params;
     }
 
     private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return UiKit.dp(this, value);
     }
 }
