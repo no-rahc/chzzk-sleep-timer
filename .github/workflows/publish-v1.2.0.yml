@@ -4,29 +4,31 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
   actions: read
+  pull-requests: write
+  issues: write
+
+env:
+  VERIFIED_SOURCE_SHA: db779bd3dd78ef292de9d2dde32e0a2d5a9efbc8
+  VERIFIED_APK_SHA256: 98f61c33c07435a036c8c7f66ed0ec2f5aba50b27495420f09b5106a85c49174
+  RELEASE_PR: "3"
 
 jobs:
   release:
-    if: startsWith(github.event.head_commit.message, 'Release v1.2.0')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Release v1.2.0')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout release commit
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
       - name: Download verified PR APK
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          SOURCE_SHA="$(git rev-parse HEAD^2)"
           RUN_ID="$(gh run list \
-            --commit "$SOURCE_SHA" \
+            --commit "$VERIFIED_SOURCE_SHA" \
             --workflow "Android CI" \
             --event pull_request \
             --status success \
@@ -35,7 +37,7 @@ jobs:
             --jq '.[0].databaseId')"
 
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "No successful Android CI run found for $SOURCE_SHA" >&2
+            echo "No successful Android CI run found for $VERIFIED_SOURCE_SHA" >&2
             exit 1
           fi
 
@@ -46,6 +48,13 @@ jobs:
 
           test -f release-artifact/app-debug.apk
           cp release-artifact/app-debug.apk chzzk-sleep-timer-v1.2.0.apk
+
+          ACTUAL_SHA256="$(sha256sum chzzk-sleep-timer-v1.2.0.apk | cut -d' ' -f1)"
+          if [ "$ACTUAL_SHA256" != "$VERIFIED_APK_SHA256" ]; then
+            echo "APK checksum mismatch: $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+
           sha256sum chzzk-sleep-timer-v1.2.0.apk > SHA256SUMS.txt
 
       - name: Publish GitHub Release
@@ -73,7 +82,7 @@ jobs:
           - 스케줄 계산 단위 테스트와 CI 검증 추가
 
           ### 검증
-          첨부 APK는 이 릴리즈 PR에서 단위 테스트, Android lint, assembleDebug를 모두 통과한 동일한 CI artifact입니다. `SHA256SUMS.txt`에서 체크섬을 확인할 수 있습니다.
+          첨부 APK는 릴리즈 PR에서 단위 테스트, Android lint, assembleDebug를 모두 통과한 동일한 CI artifact입니다. 게시 단계에서도 SHA-256을 고정값과 대조하며 `SHA256SUMS.txt`를 함께 제공합니다.
 
           ### APK 서명 안내
           이 저장소에는 배포용 keystore를 저장하지 않습니다. 첨부 APK는 설치 가능한 debug 서명 빌드입니다. 다른 CI 실행에서 생성한 APK와 서명이 다를 수 있으므로 기존 CI APK 위에 업데이트 설치가 되지 않으면 기존 앱을 제거한 뒤 설치해야 합니다.
@@ -81,7 +90,6 @@ jobs:
 
           if gh release view v1.2.0 >/dev/null 2>&1; then
             gh release edit v1.2.0 \
-              --target "$GITHUB_SHA" \
               --title "v1.2.0" \
               --notes-file release-notes.md \
               --latest
@@ -98,3 +106,10 @@ jobs:
               --notes-file release-notes.md \
               --latest
           fi
+
+      - name: Record publication on release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$RELEASE_PR" --body "✅ v1.2.0 GitHub Release 게시 완료 · APK SHA-256: \`$VERIFIED_APK_SHA256\`"
