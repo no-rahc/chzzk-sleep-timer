@@ -14,9 +14,18 @@ public final class ExtensionControlActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        long currentTrigger = AppPrefs.getNextTrigger(this);
-        if (!AppPrefs.isEnabled(this) || currentTrigger <= System.currentTimeMillis()) {
-            Toast.makeText(this, "활성화된 매일 타이머가 없습니다.", Toast.LENGTH_SHORT).show();
+        String requestedTarget = getIntent() == null
+                ? null
+                : getIntent().getStringExtra(DailyWarningReceiver.EXTRA_EXTENSION_TARGET);
+        String currentTarget = AlarmScheduler.getNextActiveTimerSource(this);
+        String target = requestedTarget != null && requestedTarget.equals(currentTarget)
+                ? requestedTarget
+                : currentTarget;
+        long currentTrigger = AlarmScheduler.getTriggerForSource(this, target);
+
+        if (AlarmScheduler.TIMER_SOURCE_NONE.equals(target)
+                || currentTrigger <= System.currentTimeMillis()) {
+            Toast.makeText(this, "활성화된 타이머가 없습니다.", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -27,11 +36,14 @@ public final class ExtensionControlActivity extends Activity {
                 "+40분 ·  " + AppPrefs.formatClockTime(currentTrigger + 40L * 60_000L)
         };
 
+        String title = AlarmScheduler.TIMER_SOURCE_ONE_SHOT.equals(target)
+                ? "일회성 타이머 연장"
+                : "오늘만 연장";
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("오늘만 연장")
+                .setTitle(title)
                 .setItems(choices, (ignored, which) -> {
                     if (which >= 0 && which < EXTENSION_MINUTES.length) {
-                        DailyWarningReceiver.extend(this, EXTENSION_MINUTES[which]);
+                        DailyWarningReceiver.extendTarget(this, target, EXTENSION_MINUTES[which]);
                     }
                     finish();
                 })
