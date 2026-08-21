@@ -7,7 +7,7 @@ import android.content.Intent;
 public class SystemEventReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent == null || !AppPrefs.isEnabled(context)) {
+        if (intent == null) {
             return;
         }
 
@@ -17,7 +17,7 @@ public class SystemEventReceiver extends BroadcastReceiver {
                 || Intent.ACTION_TIMEZONE_CHANGED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
                 || "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED".equals(action)) {
-            AlarmScheduler.schedule(context);
+            AlarmScheduler.rescheduleAll(context);
         }
     }
 }
