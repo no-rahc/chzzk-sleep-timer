@@ -1,5 +1,5 @@
 name: Publish v1.3.0
-# Release publication is triggered by the dedicated merged release PR below.
+# v1.3.0 release publication is armed by the dedicated merged PR.
 
 on:
   pull_request:
