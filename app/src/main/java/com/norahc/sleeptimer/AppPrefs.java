@@ -16,6 +16,9 @@ final class AppPrefs {
 
     private static final String KEY_NEXT_TRIGGER = "next_trigger";
     private static final String KEY_NEXT_TRIGGER_EXACT = "next_trigger_exact";
+    private static final String KEY_DAILY_OVERRIDE_TRIGGER = "daily_override_trigger";
+    private static final String KEY_DAILY_OVERRIDE_HOUR = "daily_override_hour";
+    private static final String KEY_DAILY_OVERRIDE_MINUTE = "daily_override_minute";
     private static final String KEY_ONE_SHOT_TRIGGER = "one_shot_trigger";
     private static final String KEY_ONE_SHOT_EXACT = "one_shot_exact";
 
@@ -76,6 +79,36 @@ final class AppPrefs {
         get(context).edit()
                 .remove(KEY_NEXT_TRIGGER)
                 .remove(KEY_NEXT_TRIGGER_EXACT)
+                .commit();
+    }
+
+    static void setDailyOverrideTrigger(Context context, long timestamp) {
+        get(context).edit()
+                .putLong(KEY_DAILY_OVERRIDE_TRIGGER, timestamp)
+                .putInt(KEY_DAILY_OVERRIDE_HOUR, getHour(context))
+                .putInt(KEY_DAILY_OVERRIDE_MINUTE, getMinute(context))
+                .commit();
+    }
+
+    static long getDailyOverrideTrigger(Context context) {
+        return get(context).getLong(KEY_DAILY_OVERRIDE_TRIGGER, 0L);
+    }
+
+    static boolean isDailyOverrideForCurrentSchedule(Context context) {
+        SharedPreferences prefs = get(context);
+        long trigger = prefs.getLong(KEY_DAILY_OVERRIDE_TRIGGER, 0L);
+        if (trigger <= 0L) {
+            return false;
+        }
+        return prefs.getInt(KEY_DAILY_OVERRIDE_HOUR, -1) == getHour(context)
+                && prefs.getInt(KEY_DAILY_OVERRIDE_MINUTE, -1) == getMinute(context);
+    }
+
+    static void clearDailyOverride(Context context) {
+        get(context).edit()
+                .remove(KEY_DAILY_OVERRIDE_TRIGGER)
+                .remove(KEY_DAILY_OVERRIDE_HOUR)
+                .remove(KEY_DAILY_OVERRIDE_MINUTE)
                 .commit();
     }
 
@@ -166,6 +199,11 @@ final class AppPrefs {
 
     static String formatDateTime(long timestamp) {
         return new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREA)
+                .format(new Date(timestamp));
+    }
+
+    static String formatClockTime(long timestamp) {
+        return new SimpleDateFormat("HH:mm", Locale.KOREA)
                 .format(new Date(timestamp));
     }
 }
