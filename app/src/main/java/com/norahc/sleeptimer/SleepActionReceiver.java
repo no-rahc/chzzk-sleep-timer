@@ -24,9 +24,14 @@ public class SleepActionReceiver extends BroadcastReceiver {
 
         if (AlarmScheduler.ACTION_DAILY_SLEEP.equals(action)) {
             if (!AppPrefs.isEnabled(appContext)) {
-                AppPrefs.clearNextTrigger(appContext);
+                AlarmScheduler.cancelDaily(appContext);
                 return;
             }
+
+            // The current occurrence is consumed now. Any extension applied to this
+            // occurrence must not leak into tomorrow's normal daily schedule.
+            AlarmScheduler.cancelDailyWarning(appContext);
+            AlarmScheduler.consumeDailyOverride(appContext);
 
             // Re-arm tomorrow before executing actions so one unexpected failure
             // cannot break the daily schedule chain.
