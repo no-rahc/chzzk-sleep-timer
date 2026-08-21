@@ -1,5 +1,5 @@
 name: Publish v1.3.0
-# Publication trigger commit after the workflow exists on main.
+# Release publication workflow; trigger commits are merged after this file exists on main.
 
 on:
   push:
