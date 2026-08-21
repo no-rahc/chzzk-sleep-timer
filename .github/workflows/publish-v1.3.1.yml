@@ -1,0 +1,110 @@
+name: Publish v1.3.1
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+  issues: write
+
+env:
+  VERIFIED_RUN_ID: "32478564935"
+  VERIFIED_APK_SHA256: 3ec8a0aa8489598ae9929da969948d515648e91cef1652e2c5e4076e0d5a2525
+  RELEASE_TARGET_SHA: 28d943558931cbfad544d8f595005cb6317aa8a6
+  RELEASE_PR: "17"
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.title == 'Publish v1.3.1 release')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified PR APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p release-artifact
+          gh run download "$VERIFIED_RUN_ID" \
+            --name chzzk-sleep-timer-debug \
+            --dir release-artifact
+
+          test -f release-artifact/app-debug.apk
+          cp release-artifact/app-debug.apk chzzk-sleep-timer-v1.3.1.apk
+
+          ACTUAL_SHA256="$(sha256sum chzzk-sleep-timer-v1.3.1.apk | cut -d' ' -f1)"
+          if [ "$ACTUAL_SHA256" != "$VERIFIED_APK_SHA256" ]; then
+            echo "APK checksum mismatch: $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+
+          sha256sum chzzk-sleep-timer-v1.3.1.apk > SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## v1.3.1
+
+          기능 추가보다는 실제 사용 흐름의 디테일을 다듬은 polish 릴리즈입니다.
+
+          ### 현재 화면에서 바로 조절
+          - 상단 고정 알림의 `밝기`를 누르면 수면 타이머 앱으로 전환하지 않고 현재 보고 있던 앱 위에 Extra Dim 조절 패널을 표시합니다.
+          - 알림의 `연장`도 접근성 서비스가 연결되어 있으면 같은 방식의 오버레이로 +5 / +20 / +40분을 선택합니다.
+          - 매일 종료 10분 전 연장 안내도 현재 보고 있던 화면 위에 작은 오버레이로 표시합니다.
+          - 화면이 이미 꺼져 있으면 10분 전 안내 때문에 화면을 켜지 않으며, 알림은 fallback으로 그대로 남습니다.
+          - 접근성 서비스가 연결되지 않은 경우에만 기존 Activity 패널을 fallback으로 사용합니다.
+
+          ### 시간 설정
+          - 매일 종료 시간 선택을 시계판 방식 대신 24시간제 시/분 스피너 방식으로 변경했습니다.
+
+          ### 상단 알림 가독성
+          - `타이머가 작동 중입니다` 같은 일반 문구를 제거했습니다.
+          - 실제 종료 시각과 타입을 `01:00 종료 · 매일`, `23:18 종료 · 일회성`, `01:20 종료 · 오늘만`처럼 제목에서 바로 확인할 수 있습니다.
+          - Android 시스템 카운트다운 chronometer는 그대로 유지해서 남은 시간을 함께 확인할 수 있습니다.
+
+          ### 정리
+          - 더 이상 사용하지 않는 full-screen warning 권한 및 manifest activity entry를 제거했습니다.
+          - 폰/태블릿 모두 오버레이 최대 폭을 제한해 현재 화면을 과하게 가리지 않습니다.
+
+          ### 검증
+          첨부 APK는 PR #17의 GitHub Actions run #32478564935에서 unit test, Android lint, assembleDebug를 모두 통과한 정확히 같은 artifact입니다. 게시 단계에서 SHA-256을 다시 검증하며 `SHA256SUMS.txt`를 함께 제공합니다.
+
+          ### APK 서명 안내
+          현재 APK는 debug 서명 빌드입니다. 다른 CI 실행에서 생성한 APK와 서명이 다를 수 있으므로 기존 APK 위에 업데이트 설치가 거부되면 기존 앱을 제거한 후 설치해야 할 수 있습니다.
+          EOF
+
+          if gh release view v1.3.1 >/dev/null 2>&1; then
+            gh release edit v1.3.1 \
+              --target "$RELEASE_TARGET_SHA" \
+              --title "v1.3.1" \
+              --notes-file release-notes.md \
+              --latest
+            gh release upload v1.3.1 \
+              chzzk-sleep-timer-v1.3.1.apk \
+              SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create v1.3.1 \
+              chzzk-sleep-timer-v1.3.1.apk \
+              SHA256SUMS.txt \
+              --target "$RELEASE_TARGET_SHA" \
+              --title "v1.3.1" \
+              --notes-file release-notes.md \
+              --latest
+          fi
+
+      - name: Record publication on release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$RELEASE_PR" --body "✅ v1.3.1 GitHub Release 게시 완료 · APK SHA-256: \`$VERIFIED_APK_SHA256\`"
