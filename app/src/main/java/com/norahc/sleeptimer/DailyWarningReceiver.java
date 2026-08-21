@@ -26,9 +26,13 @@ public final class DailyWarningReceiver extends BroadcastReceiver {
                     0L
             );
             long currentTrigger = AppPrefs.getNextTrigger(appContext);
+            String effectiveSource = AlarmScheduler.getNextActiveTimerSource(appContext);
+            long effectiveTrigger = AlarmScheduler.getNextActiveTimerTrigger(appContext);
             if (!AppPrefs.isEnabled(appContext)
                     || currentTrigger <= System.currentTimeMillis()
-                    || expectedTrigger != currentTrigger) {
+                    || expectedTrigger != currentTrigger
+                    || !AlarmScheduler.TIMER_SOURCE_DAILY.equals(effectiveSource)
+                    || effectiveTrigger != currentTrigger) {
                 return;
             }
             DailyWarningNotifier.show(appContext, currentTrigger);
