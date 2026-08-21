@@ -104,6 +104,14 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         return true;
     }
 
+    static void clearExtraDimNow(Context context) {
+        AppPrefs.setExtraDimPercent(context.getApplicationContext(), 0);
+        ScreenLockAccessibilityService service = instance;
+        if (service != null) {
+            service.applyExtraDim(0);
+        }
+    }
+
     static void clearExtraDimAfterSuccessfulLock(Context context) {
         AppPrefs.setExtraDimPercent(context.getApplicationContext(), 0);
 
@@ -113,7 +121,7 @@ public class ScreenLockAccessibilityService extends AccessibilityService {
         }
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (instance == service) {
+            if (instance == service && AppPrefs.getExtraDimPercent(service) == 0) {
                 service.applyExtraDim(0);
             }
         }, EXTRA_DIM_CLEAR_AFTER_LOCK_DELAY_MS);
