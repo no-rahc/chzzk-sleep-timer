@@ -1,4 +1,5 @@
 name: Publish v1.3.0
+# Publication trigger commit after the workflow exists on main.
 
 on:
   push:
