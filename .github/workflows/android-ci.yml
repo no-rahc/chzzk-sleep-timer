@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "improve/**"
+      - "release/**"
   pull_request:
 
 permissions:
@@ -30,10 +31,10 @@ jobs:
       - name: Install Android SDK 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Build and lint
+      - name: Test, lint, and build
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon clean assembleDebug lintDebug
+          ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

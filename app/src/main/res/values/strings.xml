@@ -3,10 +3,10 @@
     <string name="app_name">수면 타이머</string>
     <string name="media_service_label">수면 타이머 미디어 제어</string>
     <string name="accessibility_service_label">수면 타이머 화면 잠금</string>
-    <string name="accessibility_service_description">예약 시각에 화면을 잠그기 위해 사용합니다. 화면 내용을 읽거나 입력을 자동화하지 않습니다.</string>
-    <string name="schedule_exact">매일 %1$s · 정확히 실행됩니다.</string>
-    <string name="schedule_approximate">매일 %1$s · 근사 실행 중입니다. 정확한 알람 권한을 허용하세요.</string>
-    <string name="schedule_disabled">예약이 꺼져 있습니다. 시각을 고른 뒤 스위치를 켜세요.</string>
+    <string name="accessibility_service_description">선택한 타이머 동작에서 화면을 잠그기 위해 사용합니다. 화면 내용을 읽거나 입력을 자동화하지 않습니다.</string>
+    <string name="schedule_exact">다음 실행 %1$s · 정확한 알람</string>
+    <string name="schedule_approximate">다음 실행 %1$s · 근사 알람 (정확한 알람 권한 필요)</string>
+    <string name="schedule_disabled">예약이 꺼져 있습니다.</string>
     <string name="last_run">최근 실행 · %1$s</string>
     <string name="permission_allowed">● %1$s</string>
     <string name="permission_required">○ %1$s</string>
