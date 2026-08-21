@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.4 - 2026-08-21
+
+### Added
+- Brightness action on the persistent daily timer notification.
+- Popup slider for an extra-dim screen filter from 0% to 85%.
+- Immediate live dimming while the slider moves, plus a one-tap reset action.
+- Persistent extra-dim preference restored when the screen-control accessibility service reconnects.
+
+### Changed
+- The existing screen-lock accessibility service now also owns a touch-through accessibility overlay used only for extra dimming.
+- Accessibility copy now describes both screen locking and the extra-dim filter while continuing to declare that window content is not read and input is not automated.
+
+### Safety
+- Extra dimming uses a transparent black overlay instead of attempting to drive the hardware backlight below vendor limits.
+- The overlay is capped at 85% opacity and is non-focusable/non-touchable so normal app interaction remains available.
+
 ## 1.2.3 - 2026-08-21
 
 ### Changed
