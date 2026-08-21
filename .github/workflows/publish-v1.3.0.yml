@@ -1,5 +1,5 @@
 name: Publish v1.3.0
-# v1.3.0 release publication is armed by the dedicated merged PR.
+# v1.3.0 release publication is pinned to the exact verified CI run.
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ permissions:
   issues: write
 
 env:
-  VERIFIED_SOURCE_SHA: c2eb165c2396f21a263ae9c6ac1553a3b6adfc32
+  VERIFIED_RUN_ID: "32471676781"
   VERIFIED_APK_SHA256: 45e58c9fe061a79adb1824cc1be8111462b91375f9ee735c15403f096edf1e12
   RELEASE_TARGET_SHA: e3753439e6cd80c34c671a19fb8d256504f2037d
   RELEASE_PR: "12"
@@ -31,22 +31,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          RUN_ID="$(gh run list \
-            --commit "$VERIFIED_SOURCE_SHA" \
-            --workflow "Android CI" \
-            --event pull_request \
-            --status success \
-            --limit 1 \
-            --json databaseId \
-            --jq '.[0].databaseId')"
-
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "No successful Android CI run found for $VERIFIED_SOURCE_SHA" >&2
-            exit 1
-          fi
-
           mkdir -p release-artifact
-          gh run download "$RUN_ID" \
+          gh run download "$VERIFIED_RUN_ID" \
             --name chzzk-sleep-timer-debug \
             --dir release-artifact
 
@@ -97,7 +83,7 @@ jobs:
           - 재부팅, 시간/시간대 변경, 앱 업데이트 후 예약 복구
 
           ### 검증
-          첨부 APK는 PR #12에서 unit test, Android lint, assembleDebug를 모두 통과한 동일한 GitHub Actions artifact입니다. 게시 단계에서도 SHA-256 고정값을 다시 확인하며 `SHA256SUMS.txt`를 함께 제공합니다.
+          첨부 APK는 PR #12에서 unit test, Android lint, assembleDebug를 모두 통과한 정확히 같은 GitHub Actions run #32471676781 artifact입니다. 게시 단계에서도 SHA-256 고정값을 다시 확인하며 `SHA256SUMS.txt`를 함께 제공합니다.
 
           ### APK 서명 안내
           현재 APK는 debug 서명 빌드입니다. 다른 CI 실행에서 생성한 APK와 서명이 다를 수 있으므로 기존 APK 위에 업데이트 설치가 거부되면 기존 앱을 제거한 후 설치해야 할 수 있습니다.
