@@ -61,6 +61,48 @@ public class AlarmSchedulerTest {
         assertEquals(30, result.get(Calendar.MINUTE));
     }
 
+    @Test
+    public void warningTriggerIsTenMinutesBeforeDailyTrigger() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 22, 0);
+        long daily = timestamp(2026, Calendar.AUGUST, 21, 23, 30);
+        long warning = AlarmScheduler.calculateWarningTrigger(now, daily);
+
+        Calendar result = calendar(warning);
+        assertEquals(23, result.get(Calendar.HOUR_OF_DAY));
+        assertEquals(20, result.get(Calendar.MINUTE));
+    }
+
+    @Test
+    public void warningTriggerShowsImmediatelyWhenLessThanTenMinutesRemain() {
+        long now = timestamp(2026, Calendar.AUGUST, 21, 23, 25);
+        long daily = timestamp(2026, Calendar.AUGUST, 21, 23, 30);
+        long warning = AlarmScheduler.calculateWarningTrigger(now, daily);
+
+        assertEquals(now + 1_000L, warning);
+    }
+
+    @Test
+    public void extensionAddsOnlyRequestedMinutesToCurrentOccurrence() {
+        long current = timestamp(2026, Calendar.AUGUST, 21, 23, 30);
+        long extended = AlarmScheduler.calculateExtendedTrigger(current, 20);
+
+        Calendar result = calendar(extended);
+        assertEquals(21, result.get(Calendar.DAY_OF_MONTH));
+        assertEquals(23, result.get(Calendar.HOUR_OF_DAY));
+        assertEquals(50, result.get(Calendar.MINUTE));
+    }
+
+    @Test
+    public void afterExtendedOccurrenceNextDailyReturnsToBaseTime() {
+        long afterExtendedRun = timestamp(2026, Calendar.AUGUST, 21, 23, 50);
+        long next = AlarmScheduler.calculateNextDailyTrigger(afterExtendedRun, 23, 30);
+
+        Calendar result = calendar(next);
+        assertEquals(22, result.get(Calendar.DAY_OF_MONTH));
+        assertEquals(23, result.get(Calendar.HOUR_OF_DAY));
+        assertEquals(30, result.get(Calendar.MINUTE));
+    }
+
     private static long timestamp(int year, int month, int day, int hour, int minute) {
         Calendar calendar = Calendar.getInstance();
         calendar.clear();
