@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.2 - 2026-08-21
+
+### Added
+- Warning popup 10 minutes before the recurring daily sleep action.
+- Quick extension actions for +5, +20, and +40 minutes directly from the warning.
+- Dedicated warning screen for lock-screen/full-screen alarm presentation when Android allows it.
+
+### Changed
+- Daily extensions apply only to the current scheduled occurrence and never modify the configured recurring time.
+- Extending the current occurrence immediately updates the actual AlarmManager trigger, countdown notification, and next 10-minute warning.
+- Reboot/time-change recovery preserves a still-active one-day extension.
+- The persistent countdown notification labels a temporary override as "오늘만" and keeps the normal daily time visible.
+
+### Fixed
+- After an extended occurrence runs, the next daily alarm is explicitly rebuilt from the normal configured time.
+
 ## 1.2.1 - 2026-08-21
 
 ### Added
@@ -38,4 +54,4 @@
 - Android 15 system-bar inset handling is preserved for targetSdk 35.
 
 ### Signing note
-The repository does not contain a persistent distribution keystore. CI artifacts and the v1.2.0 APK are installable debug-signed builds; update installation across independently generated CI APKs is not guaranteed until a persistent signing key is configured securely.
+The repository does not contain a persistent distribution keystore. CI artifacts are installable debug-signed builds; update installation across independently generated CI APKs is not guaranteed until a persistent signing key is configured securely.
