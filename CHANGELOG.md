@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0 - 2026-08-21
+
+### UI refresh
+- Rebuilt the main screen around one shared visual system with consistent colors, rounded surfaces, ripple feedback, spacing, typography, status chips, and 44–48dp touch targets.
+- Added a prominent next-shutdown summary so the currently effective daily or one-shot timer is visible at a glance.
+- Phone layouts stay single-column while tablet layouts switch to a centered two-column arrangement with a bounded maximum content width instead of stretching cards across the whole display.
+- Quick one-shot presets use a roomy 2x2 layout on phones and a single row on tablets.
+- Replaced the old custom-minute and action-test AlertDialogs with matching compact in-app panels.
+
+### Extra dim and timer panels
+- Replaced the legacy extra-dim AlertDialog with a modern bottom panel showing a large live percentage, tinted slider, reset/25/50/75% presets, and a clear completion action.
+- Reworked the timer-extension picker into the same bottom-panel design with +5 / +20 / +40 minute targets and their resulting clock times.
+- Restyled the 10-minute warning as a compact floating card using the same visual language, with +20 minutes emphasized as the common action.
+- Popup width is capped on tablets so controls remain close together and comfortable to reach.
+
+### Compatibility
+- Preserved the existing daily schedule, one-shot timers, notification countdown, extensions, 30-second fade-out, Extra Dim behavior, permissions, screen lock, and reboot/time-change recovery.
+- Kept Android 15 system-bar inset handling and minSdk 28 support.
+
 ## 1.2.8 - 2026-08-21
 
 ### Fixed

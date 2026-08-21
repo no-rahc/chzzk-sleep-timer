@@ -5,8 +5,6 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -25,36 +23,55 @@ public final class DailyWarningActivity extends Activity {
         setShowWhenLocked(true);
         setFinishOnTouchOutside(true);
 
-        Window window = getWindow();
-        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(18), dp(16), dp(18), dp(16));
+        panel.setBackground(UiKit.roundedStroke(
+                this,
+                UiKit.SURFACE,
+                22,
+                UiKit.DIVIDER
+        ));
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(14), dp(18), dp(12));
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView badge = UiKit.text(this, "10분 남음", 11, UiKit.WARNING);
+        badge.setTypeface(null, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(9), dp(5), dp(9), dp(5));
+        badge.setBackground(UiKit.rounded(this, UiKit.SURFACE_RAISED, 12));
+        top.addView(badge);
+        panel.addView(top, margins(0, 0, 0, 10));
 
-        TextView title = new TextView(this);
-        title.setText("곧 재생이 종료됩니다.");
-        title.setTextSize(18);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(title, matchWrap());
+        TextView title = UiKit.text(this, "곧 재생이 종료됩니다", 19, UiKit.TEXT_PRIMARY);
+        title.setTypeface(null, Typeface.BOLD);
+        panel.addView(title);
 
-        TextView detail = new TextView(this);
-        detail.setText("종료 예정 " + AppPrefs.formatClockTime(trigger) + " · 오늘만 연장");
-        detail.setTextSize(13);
-        LinearLayout.LayoutParams detailParams = matchWrap();
-        detailParams.setMargins(0, dp(5), 0, dp(10));
-        root.addView(detail, detailParams);
+        TextView detail = UiKit.text(
+                this,
+                "종료 예정 " + AppPrefs.formatClockTime(trigger) + " · 필요하면 오늘만 연장하세요",
+                13,
+                UiKit.TEXT_SECONDARY
+        );
+        panel.addView(detail, margins(0, 5, 0, 14));
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        actions.addView(extensionButton("+5분", 5), actionParams(0));
-        actions.addView(extensionButton("+20분", 20), actionParams(dp(6)));
-        actions.addView(extensionButton("+40분", 40), actionParams(dp(6)));
-        root.addView(actions, matchWrap());
+        actions.addView(extensionButton("+5분", 5, false), actionParams(0));
+        actions.addView(extensionButton("+20분", 20, true), actionParams(dp(7)));
+        actions.addView(extensionButton("+40분", 40, false), actionParams(dp(7)));
+        panel.addView(actions);
 
-        setContentView(root);
-        applyCompactWindow(window);
+        setContentView(panel);
+        UiKit.applyFloatingWindow(
+                this,
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL,
+                460,
+                16,
+                72,
+                0.05f
+        );
     }
 
     @Override
@@ -66,14 +83,9 @@ public final class DailyWarningActivity extends Activity {
         }
     }
 
-    private Button extensionButton(String label, int minutes) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextSize(14);
-        button.setMinHeight(0);
-        button.setMinWidth(0);
-        button.setPadding(dp(4), 0, dp(4), 0);
+    private Button extensionButton(String label, int minutes, boolean emphasized) {
+        Button button = UiKit.chip(this, label, emphasized);
+        button.setTextSize(13);
         button.setContentDescription("오늘 종료 시간을 " + minutes + "분 연장");
         button.setOnClickListener(v -> {
             long result = DailyWarningReceiver.extend(this, minutes);
@@ -87,35 +99,23 @@ public final class DailyWarningActivity extends Activity {
     private LinearLayout.LayoutParams actionParams(int startMargin) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 0,
-                dp(44),
+                dp(46),
                 1f
         );
         params.setMarginStart(startMargin);
         return params;
     }
 
-    private void applyCompactWindow(Window window) {
-        WindowManager.LayoutParams attributes = window.getAttributes();
-        attributes.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        attributes.y = dp(72);
-        attributes.dimAmount = 0.12f;
-        window.setAttributes(attributes);
-        window.setLayout(compactWidth(0.88f, 380), WindowManager.LayoutParams.WRAP_CONTENT);
-    }
-
-    private int compactWidth(float fraction, int maxDp) {
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        return Math.min(Math.round(screenWidth * fraction), dp(maxDp));
-    }
-
-    private LinearLayout.LayoutParams matchWrap() {
-        return new LinearLayout.LayoutParams(
+    private LinearLayout.LayoutParams margins(int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
+        params.setMargins(dp(left), dp(top), dp(right), dp(bottom));
+        return params;
     }
 
     private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return UiKit.dp(this, value);
     }
 }

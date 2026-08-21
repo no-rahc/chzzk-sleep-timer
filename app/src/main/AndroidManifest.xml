@@ -54,7 +54,7 @@
             android:launchMode="singleTop"
             android:noHistory="true"
             android:showWhenLocked="true"
-            android:theme="@android:style/Theme.DeviceDefault.Dialog.Alert" />
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <receiver
             android:name=".SleepActionReceiver"
