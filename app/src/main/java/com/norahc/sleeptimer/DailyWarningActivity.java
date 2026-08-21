@@ -27,40 +27,38 @@ public final class DailyWarningActivity extends Activity {
         setFinishOnTouchOutside(true);
 
         Window window = getWindow();
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        window.addFlags(
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                        | WindowManager.LayoutParams.FLAG_DIM_BEHIND
+        );
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(24), dp(22), dp(24), dp(20));
+        root.setPadding(dp(18), dp(14), dp(18), dp(12));
 
         TextView title = new TextView(this);
         title.setText("곧 재생이 종료됩니다.");
-        title.setTextSize(21);
+        title.setTextSize(18);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         root.addView(title, matchWrap());
 
         TextView detail = new TextView(this);
-        detail.setText("현재 종료 예정 시각은 " + AppPrefs.formatClockTime(trigger)
-                + "입니다.\n오늘만 종료 시간을 연장할 수 있습니다.");
-        detail.setTextSize(15);
-        detail.setLineSpacing(dp(2), 1.05f);
+        detail.setText("종료 예정 " + AppPrefs.formatClockTime(trigger) + " · 오늘만 연장");
+        detail.setTextSize(13);
         LinearLayout.LayoutParams detailParams = matchWrap();
-        detailParams.setMargins(0, dp(10), 0, dp(18));
+        detailParams.setMargins(0, dp(5), 0, dp(10));
         root.addView(detail, detailParams);
 
-        root.addView(extensionButton("+5분 추가", 5), buttonParams());
-        root.addView(extensionButton("+20분 추가", 20), buttonParams());
-        root.addView(extensionButton("+40분 추가", 40), buttonParams());
-
-        TextView hint = new TextView(this);
-        hint.setText("연장해도 내일의 기본 종료 시각은 변경되지 않습니다.");
-        hint.setTextSize(12);
-        hint.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams hintParams = matchWrap();
-        hintParams.setMargins(0, dp(10), 0, 0);
-        root.addView(hint, hintParams);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.addView(extensionButton("+5분", 5), actionParams(0));
+        actions.addView(extensionButton("+20분", 20), actionParams(dp(6)));
+        actions.addView(extensionButton("+40분", 40), actionParams(dp(6)));
+        root.addView(actions, matchWrap());
 
         setContentView(root);
+        applyCompactWindow(window);
     }
 
     @Override
@@ -76,7 +74,11 @@ public final class DailyWarningActivity extends Activity {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextSize(16);
+        button.setTextSize(14);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setPadding(dp(4), 0, dp(4), 0);
+        button.setContentDescription("오늘 종료 시간을 " + minutes + "분 연장");
         button.setOnClickListener(v -> {
             long result = DailyWarningReceiver.extend(this, minutes);
             if (result > 0L) {
@@ -86,13 +88,28 @@ public final class DailyWarningActivity extends Activity {
         return button;
     }
 
-    private LinearLayout.LayoutParams buttonParams() {
+    private LinearLayout.LayoutParams actionParams(int startMargin) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(50)
+                0,
+                dp(44),
+                1f
         );
-        params.setMargins(0, 0, 0, dp(8));
+        params.setMarginStart(startMargin);
         return params;
+    }
+
+    private void applyCompactWindow(Window window) {
+        WindowManager.LayoutParams attributes = window.getAttributes();
+        attributes.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        attributes.y = dp(72);
+        attributes.dimAmount = 0.12f;
+        window.setAttributes(attributes);
+        window.setLayout(compactWidth(0.88f, 380), WindowManager.LayoutParams.WRAP_CONTENT);
+    }
+
+    private int compactWidth(float fraction, int maxDp) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        return Math.min(Math.round(screenWidth * fraction), dp(maxDp));
     }
 
     private LinearLayout.LayoutParams matchWrap() {
