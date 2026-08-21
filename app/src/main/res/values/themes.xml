@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="AppSpinnerTimePicker" parent="@android:style/Widget.Material.TimePicker">
+        <item name="android:timePickerMode">spinner</item>
+    </style>
+
+    <style name="AppTimePickerDialogTheme" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:timePickerStyle">@style/AppSpinnerTimePicker</item>
+    </style>
+
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">@color/primary</item>
+        <item name="android:timePickerDialogTheme">@style/AppTimePickerDialogTheme</item>
+        <item name="android:timePickerStyle">@style/AppSpinnerTimePicker</item>
         <item name="android:windowBackground">@color/screen_background</item>
         <item name="android:navigationBarColor">@color/screen_background</item>
         <item name="android:statusBarColor">@color/screen_background</item>

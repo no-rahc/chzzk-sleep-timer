@@ -107,9 +107,10 @@ final class DailyCountdownNotifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Intent brightnessIntent = new Intent(appContext, BrightnessControlActivity.class)
-                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent brightnessControl = PendingIntent.getActivity(
+        Intent brightnessIntent = new Intent(appContext, DailyWarningReceiver.class)
+                .setAction(DailyWarningReceiver.ACTION_SHOW_BRIGHTNESS_CONTROL)
+                .setData(Uri.parse("chzzk-sleep-timer://notification/brightness"));
+        PendingIntent brightnessControl = PendingIntent.getBroadcast(
                 appContext,
                 REQUEST_BRIGHTNESS,
                 brightnessIntent,
@@ -128,10 +129,11 @@ final class DailyCountdownNotifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Intent extensionPickerIntent = new Intent(appContext, ExtensionControlActivity.class)
-                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        Intent extensionPickerIntent = new Intent(appContext, DailyWarningReceiver.class)
+                .setAction(DailyWarningReceiver.ACTION_SHOW_EXTENSION_CONTROL)
+                .setData(Uri.parse("chzzk-sleep-timer://notification/extend/picker/" + source))
                 .putExtra(DailyWarningReceiver.EXTRA_EXTENSION_TARGET, source);
-        PendingIntent extensionPicker = PendingIntent.getActivity(
+        PendingIntent extensionPicker = PendingIntent.getBroadcast(
                 appContext,
                 REQUEST_EXTENSION_PICKER,
                 extensionPickerIntent,
@@ -142,20 +144,25 @@ final class DailyCountdownNotifier {
                 AppPrefs.getHour(appContext),
                 AppPrefs.getMinute(appContext)
         );
-        String subText;
+        String clock = AppPrefs.formatClockTime(triggerAtMillis);
+        String title;
+        String detail;
         if (AlarmScheduler.TIMER_SOURCE_ONE_SHOT.equals(source)) {
-            subText = "일회성 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 매일 " + baseTime;
+            title = clock + " 종료 · 일회성";
+            detail = "남은 시간 · 매일 " + baseTime + " 예약도 유지";
         } else if (AlarmScheduler.isDailyOverrideActive(appContext)) {
-            subText = "오늘만 " + AppPrefs.formatClockTime(triggerAtMillis) + " · 기본 " + baseTime;
+            title = clock + " 종료 · 오늘만";
+            detail = "남은 시간 · 기본 매일 " + baseTime;
         } else {
-            subText = "매일 " + baseTime;
+            title = clock + " 종료 · 매일";
+            detail = "남은 시간 · 매일 " + baseTime;
         }
 
         Notification notification = new Notification.Builder(appContext, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_timer_notification)
-                .setContentTitle("타이머가 작동 중입니다.")
-                .setContentText("꺼지기까지 남은 시간")
-                .setSubText(subText)
+                .setContentTitle(title)
+                .setContentText(detail)
+                .setSubText("수면 타이머")
                 .setWhen(triggerAtMillis)
                 .setShowWhen(true)
                 .setUsesChronometer(true)
